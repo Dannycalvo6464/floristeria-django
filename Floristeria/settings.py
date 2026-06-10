@@ -14,7 +14,11 @@ SECRET_KEY = 'django-insecure-xqb0t173zp51u$8t8-v8yw*+__$!*s0@d%+176h33=!a#z0uz4
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "floristeria-django.onrender.com",
+    "127.0.0.1",
+    "localhost",
+]
 
 
 # Application definition
