@@ -75,6 +75,9 @@ DATABASES = {
         'PASSWORD': 'kM6ANQuqKHOfhF9FwY6yQUCpxdfR3uPY',
         'HOST': 'dpg-d8kcgma8qa3s73fu3dhg-a',
         'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
     }
 }
 
