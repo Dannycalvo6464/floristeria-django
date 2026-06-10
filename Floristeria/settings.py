@@ -68,12 +68,12 @@ WSGI_APPLICATION = 'Floristeria.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-     'default': {
+    'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'Proyecto final',
-        'USER': 'postgres',
+        'NAME': 'floristeria_db_nclg',
+        'USER': 'floristeria_db_nclg_user',
         'PASSWORD': 'ElManchasbonito2116',
-        'HOST': 'localhost',
+        'HOST': 'dpg-d8kcgma8qa3s73fu3dhg-a',
         'PORT': '5432',
     }
 }
