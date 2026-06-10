@@ -72,7 +72,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'floristeria_db_nclg',
         'USER': 'floristeria_db_nclg_user',
-        'PASSWORD': 'ElManchasbonito2116',
+        'PASSWORD': 'kM6ANQuqKHOfhF9FwY6yQUCpxdfR3uPY',
         'HOST': 'dpg-d8kcgma8qa3s73fu3dhg-a',
         'PORT': '5432',
     }
