@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Buscar Usuario</title>
+</head>
+<body>
+
+<h1>Buscar Usuario - Flores Cali</h1>
+
+<a href="/panel_admin/">
+    Volver al Panel
+</a>
+
+<form method="post">
+    {% csrf_token %}
+
+    <label>Nombre:</label><br>
+    <input type="text" name="nombre">
+    <button type="submit">Buscar</button>
+
+</form>
+
+<hr>
+
+{% for usuario in usuarios %}
+
+<p><strong>Nombre:</strong> {{ usuario.nombre }}</p>
+<p><strong>Correo:</strong> {{ usuario.correo }}</p>
+
+<hr>
+
+{% endfor %}
+
+</body>
+</html>
