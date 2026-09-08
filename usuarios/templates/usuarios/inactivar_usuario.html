@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inactivar Usuario</title>
+</head>
+<body>
+
+<h1>Inactivar Usuario - Flores Cali</h1>
+
+<a href="/panel_admin/">
+    Volver al Panel
+</a>
+
+<br><br>
+
+<table border="1">
+
+<tr>
+    <th>Nombre</th>
+    <th>Correo</th>
+    <th>Acción</th>
+</tr>
+
+{% for usuario in usuarios %}
+
+<tr>
+    <td>{{ usuario.nombre }}</td>
+    <td>{{ usuario.correo }}</td>
+
+    <td>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="id" value="{{ usuario.id }}">
+            <button type="submit">Inactivar</button>
+        </form>
+    </td>
+</tr>
+
+{% endfor %}
+
+</table>

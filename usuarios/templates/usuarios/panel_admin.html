@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Panel Administrador</title>
+</head>
+<body>
+
+<h1>Panel Administrador</h1>
+
+<p>Bienvenido {{ usuario.nombre }}</p>
+
+<p>Tipo: {{ usuario.tipo }}</p>
+
+<hr>
+
+<a href="/logout/">Cerrar sesión</a>
+
+<ul>
+    <li>
+        <a href="/buscar_usuario/">
+            Buscar Usuario
+        </a>
+    </li>
+
+    <li>
+        <a href="/actualizar_usuario/">
+            Actualizar Usuario
+        </a>
+    </li>
+
+    <li>
+        <a href="/inactivar_usuario/">
+            Inactivar Usuario
+        </a>
+    </li>
+
+ <li><a href="/activar_usuario/">
+        Activar Usuario
+
+</ul>
+
+</body>
+</html>

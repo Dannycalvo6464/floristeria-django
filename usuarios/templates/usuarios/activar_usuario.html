@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Activar Usuario</title>
+</head>
+<body>
+
+<h1>Activar Usuario - Flores Cali</h1>
+
+<a href="/panel_admin/">
+    Volver al Panel
+</a>
+
+
+<table border="1">
+
+<tr>
+    <th>Nombre</th>
+    <th>Correo</th>
+    <th>Acción</th>
+</tr>
+
+{% for usuario in usuarios %}
+
+<tr>
+    <td>{{ usuario.nombre }}</td>
+    <td>{{ usuario.correo }}</td>
+
+    <td>
+        <form method="post">
+            {% csrf_token %}
+
+            <input
+                type="hidden"
+                name="id"
+                value="{{ usuario.id }}"
+            >
+
+            <button type="submit">
+                Activar
+            </button>
+
+        </form>
+    </td>
+
+</tr>
+
+
+{% endfor %}
+
+</table>
+
+</body>
+</html>

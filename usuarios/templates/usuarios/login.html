@@ -1,0 +1,25 @@
+<h1>Flores Cali</h1>
+
+<h2>Iniciar Sesión</h2>
+
+<form method="post">
+    {% csrf_token %}
+
+    <label>Correo o Nombre:</label><br>
+    <input type="text" name="correo"><br><br>
+
+    <label>Contraseña:</label><br>
+    <input type="password" name="contrasena"><br><br>
+
+    <button type="submit">Ingresar</button>
+</form>
+
+<br>
+
+<a href="/crear_usuario/">
+    Registrarse
+</a>
+
+<p style="color:red;">
+    {{ mensaje }}
+</p>
