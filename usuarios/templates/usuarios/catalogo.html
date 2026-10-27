@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo</title>
+    <style>
+        :root {
+            --bg: #f7ebf0;
+            --card: rgba(255,255,255,0.78);
+            --pink: #c56d86;
+            --pink-deep: #9d3d61;
+            --text: #3a2e31;
+            --muted: #7d636a;
+            --line: rgba(169, 111, 132, 0.5);
+            --shadow: rgba(150, 94, 118, 0.15);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: linear-gradient(135deg, #f6ebf0 0%, #f5f0f2 100%);
+            color: var(--text);
+            padding: 32px 16px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: var(--card);
+            border-radius: 28px;
+            box-shadow: 0 18px 38px var(--shadow);
+            padding: 28px 30px 32px;
+            border: 1px solid rgba(170, 122, 138, 0.08);
+        }
+
+        h1 {
+            margin: 0 0 22px;
+            color: var(--pink-deep);
+            font-size: clamp(2.2rem, 3vw, 4rem);
+            letter-spacing: -0.06em;
+            font-weight: 900;
+        }
+
+        .productos {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .producto {
+            background: rgba(255,255,255,0.25);
+            border: 1px solid rgba(157, 61, 97, 0.12);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+        }
+
+        .producto img {
+            display: block;
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+        }
+
+        .producto-body {
+            padding: 18px 16px 20px;
+        }
+
+        .producto-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .producto h3 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        .precio {
+            color: var(--pink-deep);
+            font-weight: 800;
+            font-size: 1.05rem;
+        }
+
+        .descripcion {
+            margin: 0 0 12px;
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 72px;
+        }
+
+        .disponibilidad {
+            display: inline-block;
+            background: #f9e8ee;
+            color: var(--pink-deep);
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .recomendaciones {
+            margin-top: 40px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(157, 61, 97, 0.12);
+        }
+
+        .recomendaciones h2 {
+            margin: 0 0 18px;
+            color: var(--pink-deep);
+            font-size: clamp(1.6rem, 2vw, 2.3rem);
+            font-weight: 900;
+        }
+
+        .reco-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .reco-card {
+            background: rgba(255,255,255,0.25);
+            border: 1px solid rgba(157, 61, 97, 0.12);
+            border-radius: 16px;
+            padding: 18px 16px;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+        }
+
+        .reco-card h4 {
+            margin: 0 0 10px;
+            color: var(--pink-deep);
+            font-size: 1.1rem;
+        }
+
+        .reco-card p {
+            margin: 0;
+            line-height: 1.5;
+            color: var(--text);
+        }
+
+        .acciones {
+            margin-top: 28px;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            display: inline-block;
+            text-decoration: none;
+            padding: 11px 18px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #c26a84, #9f3d61);
+            color: white;
+            font-weight: 700;
+            box-shadow: 0 12px 22px rgba(160, 83, 112, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Catálogo de flores</h1>
+
+        <ul class="productos">
+            {% for producto in productos %}
+                <li class="producto">
+                    <img src="{{ producto.imagen }}" alt="{{ producto.nombre }}">
+                    <div class="producto-body">
+                        <div class="producto-header">
+                            <h3>{{ producto.nombre }}</h3>
+                            <span class="precio">{{ producto.precio }}</span>
+                        </div>
+                        <p class="descripcion">{{ producto.descripcion }}</p>
+                        <span class="disponibilidad">Disponibilidad: {{ producto.disponibilidad }}</span>
+                    </div>
+                </li>
+            {% empty %}
+                <li>No hay productos disponibles.</li>
+            {% endfor %}
+        </ul>
+
+        <section class="recomendaciones">
+            <h2>Recomendación educativa</h2>
+            <div class="reco-grid">
+                {% for recomendacion in recomendaciones %}
+                    <article class="reco-card">
+                        <h4>{{ recomendacion.titulo }}</h4>
+                        <p>{{ recomendacion.texto }}</p>
+                    </article>
+                {% empty %}
+                    <p>No hay recomendaciones disponibles.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="acciones">
+            <a class="button" href="/panel_usuario/">Volver al panel</a>
+            <a class="button" href="/logout/">Cerrar sesión</a>
+        </div>
+    </div>
+</body>
+</html>

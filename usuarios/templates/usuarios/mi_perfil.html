@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi perfil</title>
+    <style>
+        :root {
+            --rosa-1: #fff8fa;
+            --rosa-2: #ffeaf3;
+            --rosa-3: #f7dce8;
+            --rosa-4: #d76a8d;
+            --rosa-5: #a83c62;
+            --vino: #64374b;
+            --texto: #2f262a;
+            --blanco: #ffffff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: linear-gradient(135deg, #fffafc 0%, #ffeef3 35%, #f8f1ff 100%);
+            color: var(--texto);
+            padding: 40px 18px;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.97);
+            border: 1px solid rgba(168,60,98,0.08);
+            border-radius: 26px;
+            box-shadow: 0 22px 48px rgba(129, 81, 96, 0.12);
+            padding: 30px 24px;
+        }
+
+        h1 {
+            margin: 0 0 22px;
+            color: var(--rosa-5);
+            font-size: clamp(2rem, 3vw, 2.6rem);
+        }
+
+        .perfil-card {
+            background: linear-gradient(180deg, #fff, #fff7fa);
+            border: 1px solid rgba(168,60,98,0.08);
+            border-radius: 18px;
+            padding: 22px 20px;
+            box-shadow: 0 12px 22px rgba(168,60,98,0.05);
+        }
+
+        p {
+            margin: 12px 0;
+            font-size: 1.06rem;
+            color: var(--vino);
+        }
+
+        .acciones {
+            margin-top: 26px;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            display: inline-block;
+            text-decoration: none;
+            color: var(--blanco);
+            background: linear-gradient(135deg, var(--rosa-4), var(--rosa-5));
+            border-radius: 12px;
+            padding: 11px 18px;
+            font-weight: 700;
+            box-shadow: 0 12px 22px rgba(168,60,98,0.18);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mi perfil</h1>
+
+        <div class="perfil-card">
+            <p><strong>Nombre:</strong> {{ usuario.nombre }}</p>
+            <p><strong>Tipo:</strong> {{ usuario.tipo }}</p>
+            <p><strong>Correo:</strong> {{ usuario.correo }}</p>
+        </div>
+
+        <div class="acciones">
+            <a class="button" href="/panel_usuario/">Volver al panel</a>
+            <a class="button" href="/logout/">Cerrar sesión</a>
+        </div>
+    </div>
+</body>
+</html>
