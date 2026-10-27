@@ -21,12 +21,13 @@ Para recuperación de contraseña, configura además SMTP:
 | Variable | Uso |
 | --- | --- |
 | `EMAIL_HOST`, `EMAIL_PORT` | Servidor SMTP y puerto de tu proveedor. |
+| `EMAIL_TIMEOUT` | Tiempo máximo en segundos para conectar/enviar por SMTP (predeterminado: `10`). |
 | `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | Credenciales SMTP como variables protegidas de Render. |
 | `EMAIL_USE_TLS` | `true` con STARTTLS (habitualmente puerto 587). |
 | `EMAIL_USE_SSL` | `true` solo si el proveedor requiere TLS implícito; no combinar con `EMAIL_USE_TLS`. |
 | `DEFAULT_FROM_EMAIL` | Remitente verificado en tu proveedor. |
 
-Sin SMTP configurado no se envía código y la página muestra una respuesta genérica. Los códigos nunca se muestran en pantalla ni se escriben en consola.
+Sin SMTP configurado no se envía código y la página muestra una respuesta genérica. Los errores y tiempos de espera SMTP también se manejan sin devolver un error 500 al usuario. Si el proveedor SMTP no es accesible desde el servicio, usa un proveedor de correo con API HTTPS o un plan/servicio que permita SMTP. Los códigos nunca se muestran en pantalla ni se escriben en consola.
 
 ## Comandos del servicio
 

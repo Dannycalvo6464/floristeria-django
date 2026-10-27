@@ -1,5 +1,6 @@
 import re
 from io import StringIO
+from unittest.mock import patch
 
 from django.contrib.auth.hashers import check_password, identify_hasher
 from django.core import mail
@@ -101,6 +102,32 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'EMAIL_HOST')
         self.assertContains(response, 'EMAIL_HOST_PASSWORD')
         self.assertNotContains(response, 'código de recuperación es')
+
+    @override_settings(
+        EMAIL_HOST='smtp.test',
+        DEFAULT_FROM_EMAIL='no-reply@flores.test',
+    )
+    @patch('usuarios.views.send_mail', side_effect=TimeoutError('SMTP connection timed out'))
+    def test_recuperacion_smtp_timeout_no_produce_error_500(self, send_mail_mock):
+        Usuario.objects.create(
+            nombre='Ana',
+            correo='ana@flores.com',
+            contrasena='vieja123',
+            tipo='Usuario',
+            activo=True,
+        )
+
+        with self.assertLogs('usuarios.views', level='ERROR'):
+            response = self.client.post(
+                reverse('recuperar_contrasena'),
+                {'correo': 'ana@flores.com'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No se pudo enviar el correo de recuperación')
+        self.assertNotContains(response, 'SMTP connection timed out')
+        self.assertNotIn('recuperar_codigo_hash', self.client.session)
+        send_mail_mock.assert_called_once()
 
     def test_recuperacion_expirada_vuelve_a_mostrar_solicitud_de_correo(self):
         session = self.client.session
