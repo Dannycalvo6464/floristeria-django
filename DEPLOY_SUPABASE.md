@@ -16,18 +16,20 @@ Actualiza el servicio web existente conectado al repositorio actual; no hace fal
 
 La configuración de seguridad activa cookies Secure/HttpOnly, redirección HTTPS, proxy HTTPS y HSTS cuando `DJANGO_DEBUG=false`. No pongas `https://` en `DJANGO_ALLOWED_HOSTS`; sí se necesita en `DJANGO_CSRF_TRUSTED_ORIGINS`.
 
-Para recuperación de contraseña, configura además SMTP:
+Para recuperación de contraseña, configura un proveedor de correo:
 
 | Variable | Uso |
 | --- | --- |
+| `EMAIL_PROVIDER` | `resend` para API HTTPS o `smtp` para un servidor SMTP (predeterminado: `smtp`). |
+| `RESEND_API_KEY` | Clave privada de API de Resend, necesaria cuando `EMAIL_PROVIDER=resend`. |
+| `DEFAULT_FROM_EMAIL` | Remitente permitido/verificado por el proveedor. En Resend, verifica el dominio del remitente antes del envío real. |
+| `EMAIL_TIMEOUT` | Tiempo máximo en segundos para conectar/enviar (predeterminado: `10`). |
 | `EMAIL_HOST`, `EMAIL_PORT` | Servidor SMTP y puerto de tu proveedor. |
-| `EMAIL_TIMEOUT` | Tiempo máximo en segundos para conectar/enviar por SMTP (predeterminado: `10`). |
 | `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | Credenciales SMTP como variables protegidas de Render. |
 | `EMAIL_USE_TLS` | `true` con STARTTLS (habitualmente puerto 587). |
 | `EMAIL_USE_SSL` | `true` solo si el proveedor requiere TLS implícito; no combinar con `EMAIL_USE_TLS`. |
-| `DEFAULT_FROM_EMAIL` | Remitente verificado en tu proveedor. |
 
-Sin SMTP configurado no se envía código y la página muestra una respuesta genérica. Los errores y tiempos de espera SMTP también se manejan sin devolver un error 500 al usuario. Si el proveedor SMTP no es accesible desde el servicio, usa un proveedor de correo con API HTTPS o un plan/servicio que permita SMTP. Los códigos nunca se muestran en pantalla ni se escriben en consola.
+En Render puedes usar `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` y un `DEFAULT_FROM_EMAIL` aprobado por Resend. Mantén la clave como variable privada; nunca la guardes en Git ni la compartas por chat. Las cuentas/remitentes de prueba del proveedor pueden tener restricciones de destinatario hasta verificar un dominio. La aplicación maneja fallos del proveedor sin devolver un error 500. Los códigos nunca se muestran en pantalla ni se escriben en consola.
 
 ## Comandos del servicio
 

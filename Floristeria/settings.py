@@ -138,6 +138,10 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').strip().lower() in {'1', 'true', 'yes', 'on'}
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+EMAIL_PROVIDER = os.environ.get('EMAIL_PROVIDER', 'smtp').strip().lower()
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+if EMAIL_PROVIDER not in {'smtp', 'resend'}:
+    raise ImproperlyConfigured('EMAIL_PROVIDER debe ser smtp o resend.')
 if EMAIL_USE_TLS and EMAIL_USE_SSL:
     raise ImproperlyConfigured('EMAIL_USE_TLS y EMAIL_USE_SSL no pueden estar activos a la vez.')
 

@@ -1,8 +1,11 @@
 import logging
+import json
 import secrets
 import smtplib
 import time
 from functools import wraps
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from django.contrib.auth.hashers import check_password, identify_hasher, make_password
 from django.contrib.auth.password_validation import validate_password
@@ -28,6 +31,50 @@ from .models import Usuario
 
 
 logger = logging.getLogger(__name__)
+
+
+def _send_recovery_email(recipient, code):
+    subject = "Código para recuperar tu cuenta de Flores Cali"
+    body = f"Tu código de recuperación es {code}. Vence en 10 minutos."
+
+    if settings.EMAIL_PROVIDER == "resend":
+        if not settings.RESEND_API_KEY:
+            logger.error("Falta RESEND_API_KEY para enviar correo de recuperación.")
+            return False
+
+        payload = json.dumps({
+            "from": settings.DEFAULT_FROM_EMAIL,
+            "to": [recipient],
+            "subject": subject,
+            "text": body,
+        }).encode("utf-8")
+        request = Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=settings.EMAIL_TIMEOUT) as response:
+                if 200 <= response.status < 300:
+                    return True
+                logger.error("Resend API respondió con HTTP %s.", response.status)
+        except HTTPError as error:
+            logger.error("Resend API respondió con HTTP %s.", error.code)
+        except (OSError, TimeoutError, URLError):
+            logger.exception("No se pudo conectar con Resend para enviar recuperación.")
+        return False
+
+    return bool(send_mail(
+        subject,
+        body,
+        settings.DEFAULT_FROM_EMAIL,
+        [recipient],
+        fail_silently=False,
+    ))
 
 
 def _verify_and_upgrade_password(usuario, raw_password):
@@ -218,11 +265,21 @@ def recuperar_contrasena(request):
             )
 
         correo_solicitado = request.POST.get("correo", "").strip()
-        if not settings.EMAIL_HOST or not settings.DEFAULT_FROM_EMAIL:
+        if settings.EMAIL_PROVIDER == "resend":
+            email_configured = bool(
+                settings.RESEND_API_KEY and settings.DEFAULT_FROM_EMAIL
+            )
+            config_variables = "RESEND_API_KEY y DEFAULT_FROM_EMAIL"
+        else:
+            email_configured = bool(settings.EMAIL_HOST and settings.DEFAULT_FROM_EMAIL)
+            config_variables = (
+                "EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD "
+                "y DEFAULT_FROM_EMAIL"
+            )
+        if not email_configured:
             mensaje = (
                 "La recuperación por correo aún no está configurada. "
-                "El administrador debe definir EMAIL_HOST, EMAIL_PORT, "
-                "EMAIL_HOST_USER, EMAIL_HOST_PASSWORD y DEFAULT_FROM_EMAIL en Render."
+                f"El administrador debe definir {config_variables} en Render."
             )
             return render(
                 request,
@@ -235,13 +292,7 @@ def recuperar_contrasena(request):
         if correo_solicitado and usuario:
             codigo = f"{secrets.randbelow(900000) + 100000}"
             try:
-                sent = send_mail(
-                    "Código para recuperar tu cuenta de Flores Cali",
-                    f"Tu código de recuperación es {codigo}. Vence en 10 minutos.",
-                    settings.DEFAULT_FROM_EMAIL,
-                    [usuario.correo],
-                    fail_silently=False,
-                )
+                sent = _send_recovery_email(usuario.correo, codigo)
             except (OSError, smtplib.SMTPException):
                 logger.exception("No se pudo enviar el correo de recuperación.")
                 sent = 0

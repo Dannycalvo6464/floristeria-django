@@ -1,5 +1,7 @@
+import json
 import re
 from io import StringIO
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 from django.contrib.auth.hashers import check_password, identify_hasher
@@ -93,7 +95,11 @@ class UsuarioRoutesTest(TestCase):
         usuario = Usuario.objects.get(correo='ana@flores.com')
         self.assertTrue(check_password('FloresSeguras!2026', usuario.contrasena))
 
-    @override_settings(EMAIL_HOST='', DEFAULT_FROM_EMAIL='')
+    @override_settings(
+        EMAIL_PROVIDER='smtp',
+        EMAIL_HOST='',
+        DEFAULT_FROM_EMAIL='',
+    )
     def test_recuperacion_informa_configuracion_smtp_pendiente(self):
         response = self.client.post(
             reverse('recuperar_contrasena'),
@@ -102,6 +108,73 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'EMAIL_HOST')
         self.assertContains(response, 'EMAIL_HOST_PASSWORD')
         self.assertNotContains(response, 'código de recuperación es')
+
+    @override_settings(
+        EMAIL_PROVIDER='resend',
+        RESEND_API_KEY='test-resend-key',
+        DEFAULT_FROM_EMAIL='Flores Cali <onboarding@resend.dev>',
+        EMAIL_TIMEOUT=10,
+    )
+    @patch('usuarios.views.urlopen')
+    def test_recuperacion_envia_codigo_mediante_resend_api(self, urlopen_mock):
+        usuario = Usuario.objects.create(
+            nombre='Ana',
+            correo='ana@flores.com',
+            contrasena='vieja123',
+            tipo='Usuario',
+            activo=True,
+        )
+        urlopen_mock.return_value.__enter__.return_value.status = 200
+
+        response = self.client.post(
+            reverse('recuperar_contrasena'),
+            {'correo': usuario.correo},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Revisa el correo de tu cuenta')
+        self.assertIn('recuperar_codigo_hash', self.client.session)
+        api_request = urlopen_mock.call_args.args[0]
+        self.assertEqual(api_request.full_url, 'https://api.resend.com/emails')
+        self.assertEqual(api_request.get_header('Authorization'), 'Bearer test-resend-key')
+        payload = json.loads(api_request.data)
+        self.assertEqual(payload['from'], 'Flores Cali <onboarding@resend.dev>')
+        self.assertEqual(payload['to'], [usuario.correo])
+        self.assertEqual(payload['subject'], 'Código para recuperar tu cuenta de Flores Cali')
+        self.assertRegex(payload['text'], r'Tu código de recuperación es \d{6}\. Vence en 10 minutos\.')
+        code = re.search(r'\b(\d{6})\b', payload['text']).group(1)
+        self.assertNotIn(code, response.content.decode())
+        urlopen_mock.assert_called_once()
+
+    @override_settings(
+        EMAIL_PROVIDER='resend',
+        RESEND_API_KEY='test-resend-key',
+        DEFAULT_FROM_EMAIL='Flores Cali <onboarding@resend.dev>',
+        EMAIL_TIMEOUT=10,
+    )
+    @patch(
+        'usuarios.views.urlopen',
+        side_effect=HTTPError('https://api.resend.com/emails', 403, 'rejected', {}, None),
+    )
+    def test_error_resend_no_devuelve_500_ni_guarda_codigo(self, urlopen_mock):
+        Usuario.objects.create(
+            nombre='Ana',
+            correo='ana@flores.com',
+            contrasena='vieja123',
+            tipo='Usuario',
+            activo=True,
+        )
+
+        with self.assertLogs('usuarios.views', level='ERROR'):
+            response = self.client.post(
+                reverse('recuperar_contrasena'),
+                {'correo': 'ana@flores.com'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No se pudo enviar el correo de recuperación')
+        self.assertNotIn('recuperar_codigo_hash', self.client.session)
+        urlopen_mock.assert_called_once()
 
     @override_settings(
         EMAIL_HOST='smtp.test',
