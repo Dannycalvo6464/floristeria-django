@@ -11,6 +11,16 @@ from usuarios.models import Usuario
 
 
 class UsuarioRoutesTest(TestCase):
+    def _login_como(self, tipo='Usuario'):
+        usuario = Usuario.objects.create(
+            nombre='Ana', correo='ana@flores.com', contrasena='legacy', tipo=tipo
+        )
+        session = self.client.session
+        session['usuario_id'] = usuario.pk
+        session['usuario_tipo'] = tipo
+        session.save()
+        return usuario
+
     def test_rutas_del_panel_usuario_existen(self):
         usuario = Usuario.objects.create(
             nombre='Ana', correo='ana@flores.com', contrasena='legacy', tipo='Usuario'
@@ -82,6 +92,32 @@ class UsuarioRoutesTest(TestCase):
         usuario = Usuario.objects.get(correo='ana@flores.com')
         self.assertTrue(check_password('FloresSeguras!2026', usuario.contrasena))
 
+    @override_settings(EMAIL_HOST='', DEFAULT_FROM_EMAIL='')
+    def test_recuperacion_informa_configuracion_smtp_pendiente(self):
+        response = self.client.post(
+            reverse('recuperar_contrasena'),
+            {'correo': 'ana@flores.com'},
+        )
+        self.assertContains(response, 'EMAIL_HOST')
+        self.assertContains(response, 'EMAIL_HOST_PASSWORD')
+        self.assertNotContains(response, 'código de recuperación es')
+
+    def test_recuperacion_expirada_vuelve_a_mostrar_solicitud_de_correo(self):
+        session = self.client.session
+        session['recuperar_codigo_hash'] = 'hash-expirado'
+        session['recuperar_email'] = 'ana@flores.com'
+        session['recuperar_expira'] = 0
+        session['recuperar_intentos'] = 0
+        session.save()
+
+        response = self.client.post(
+            reverse('recuperar_contrasena'),
+            {'codigo': '123456', 'nueva_contrasena': 'FloresSeguras!2026'},
+        )
+        self.assertContains(response, 'name="correo"')
+        self.assertNotContains(response, 'name="codigo"')
+        self.assertNotIn('recuperar_codigo_hash', self.client.session)
+
     def test_registro_guarda_hash_y_login_autentica(self):
         response = self.client.post(
             reverse('crear_usuario'),
@@ -141,3 +177,116 @@ class UsuarioRoutesTest(TestCase):
         self.assertIn('Disponibilidad', content)
         self.assertIn('Recomendación educativa', content)
         self.assertIn('Aniversario', content)
+
+    def test_inicio_y_login_tienen_rutas_publicas_distintas(self):
+        self.assertEqual(self.client.get(reverse('inicio')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('login')).status_code, 200)
+        self.assertContains(self.client.get(reverse('inicio')), 'Explorar catálogo')
+
+    def test_busqueda_exacta_y_filtro_de_categoria(self):
+        response = self.client.get(reverse('catalogo'), {'q': 'Rosa Roja'})
+        self.assertContains(response, 'Rosa Roja')
+        self.assertEqual(
+            [producto['slug'] for producto in response.context['productos']],
+            ['rosa-roja'],
+        )
+
+        response = self.client.get(reverse('catalogo'), {'q': 'rosa'})
+        self.assertContains(response, 'No encontramos una flor con ese nombre exacto')
+
+        response = self.client.get(reverse('catalogo'), {'categoria': 'Tulipanes'})
+        self.assertContains(response, 'Ramo de Tulipanes')
+        self.assertEqual(
+            [producto['slug'] for producto in response.context['productos']],
+            ['ramo-tulipanes'],
+        )
+
+    def test_detalle_y_carrito_permiten_agregar_editar_y_quitar(self):
+        detalle_url = reverse('detalle_producto', kwargs={'slug': 'rosa-roja'})
+        self.assertEqual(self.client.get(detalle_url).status_code, 200)
+
+        agregar_url = reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'})
+        self.assertEqual(self.client.get(agregar_url).status_code, 405)
+        response = self.client.post(agregar_url, {'cantidad': '2'})
+        self.assertRedirects(response, reverse('carrito'))
+        self.assertContains(self.client.get(reverse('carrito')), '$24.000')
+
+        actualizar_url = reverse('actualizar_carrito', kwargs={'slug': 'rosa-roja'})
+        self.client.post(actualizar_url, {'cantidad': '3'})
+        self.assertContains(self.client.get(reverse('carrito')), '$36.000')
+        self.client.post(
+            reverse('quitar_del_carrito', kwargs={'slug': 'rosa-roja'})
+        )
+        self.assertContains(self.client.get(reverse('carrito')), 'Tu carrito está vacío')
+
+    def test_carrito_rechaza_cantidad_no_entera_o_no_positiva(self):
+        response = self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '0'},
+        )
+        self.assertRedirects(
+            response,
+            reverse('detalle_producto', kwargs={'slug': 'rosa-roja'}),
+        )
+        response = self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '1.5'},
+        )
+        self.assertRedirects(
+            response,
+            reverse('detalle_producto', kwargs={'slug': 'rosa-roja'}),
+        )
+        self.assertNotIn('carrito', self.client.session)
+
+    def test_cerrar_sesion_requiere_post_e_invalida_la_sesion(self):
+        self._login_como()
+        logout_url = reverse('logout')
+        self.assertEqual(self.client.get(logout_url).status_code, 405)
+        response = self.client.post(logout_url)
+        self.assertRedirects(response, reverse('login'))
+        self.assertNotIn('usuario_id', self.client.session)
+
+    def test_paginas_y_acciones_de_administracion(self):
+        self._login_como(tipo='Admin')
+        inactivo = Usuario.objects.create(
+            nombre='Inactivo', correo='inactivo@flores.com',
+            contrasena='legacy', tipo='Usuario', activo=False,
+        )
+        for name in (
+            'buscar_usuario',
+            'actualizar_usuario',
+            'activar_usuario',
+            'inactivar_usuario',
+        ):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200)
+
+        response = self.client.post(
+            reverse('actualizar_usuario'),
+            {'buscar': '1', 'nombre': 'Inactivo'},
+        )
+        self.assertEqual(response.context['usuario'].pk, inactivo.pk)
+        response = self.client.post(
+            reverse('actualizar_usuario'),
+            {
+                'actualizar': '1',
+                'id': inactivo.pk,
+                'nombre': 'Cuenta actualizada',
+                'correo': 'actualizada@flores.com',
+            },
+        )
+        self.assertRedirects(response, reverse('actualizar_usuario'))
+        inactivo.refresh_from_db()
+        self.assertEqual(inactivo.nombre, 'Cuenta actualizada')
+
+        self.client.post(
+            reverse('activar_usuario'),
+            {'id': inactivo.pk},
+        )
+        inactivo.refresh_from_db()
+        self.assertTrue(inactivo.activo)
+        self.client.post(
+            reverse('inactivar_usuario'),
+            {'id': inactivo.pk},
+        )
+        inactivo.refresh_from_db()
+        self.assertFalse(inactivo.activo)

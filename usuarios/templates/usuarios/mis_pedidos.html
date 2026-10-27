@@ -1,123 +1,13 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mis pedidos</title>
-    <style>
-        :root {
-            --rosa-1: #fff7fa;
-            --rosa-2: #ffeaf2;
-            --rosa-3: #f7dce8;
-            --rosa-4: #d9678b;
-            --rosa-5: #a74065;
-            --vino: #613449;
-            --texto: #2f2629;
-            --blanco: #ffffff;
-        }
+{% extends "usuarios/base.html" %}
 
-        * { box-sizing: border-box; }
+{% block title %}Mis pedidos | Flores Cali{% endblock %}
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Segoe UI", Tahoma, sans-serif;
-            background: linear-gradient(135deg, #fffafc 0%, #ffeaf1 35%, #f9f1ff 100%);
-            color: var(--texto);
-            padding: 40px 18px;
-        }
-
-        .container {
-            max-width: 980px;
-            margin: 0 auto;
-            background: rgba(255,255,255,0.97);
-            border: 1px solid rgba(167,64,101,0.08);
-            border-radius: 26px;
-            box-shadow: 0 24px 52px rgba(112, 74, 88, 0.12);
-            padding: 30px 24px;
-        }
-
-        h1 {
-            margin: 0 0 24px;
-            color: var(--rosa-5);
-            font-size: clamp(2rem, 3vw, 2.7rem);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #fff;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 10px 22px rgba(136,90,108,0.05);
-        }
-
-        th, td {
-            border: 1px solid rgba(167,64,101,0.1);
-            padding: 14px 16px;
-            text-align: left;
-        }
-
-        th {
-            background: var(--rosa-2);
-            color: var(--vino);
-            font-weight: 800;
-        }
-
-        tr:nth-child(even) td {
-            background: #fff8fb;
-        }
-
-        .acciones {
-            margin-top: 26px;
-            display: flex;
-            gap: 14px;
-            flex-wrap: wrap;
-        }
-
-        .button {
-            display: inline-block;
-            text-decoration: none;
-            color: var(--blanco);
-            background: linear-gradient(135deg, var(--rosa-4), var(--rosa-5));
-            border-radius: 12px;
-            padding: 11px 18px;
-            font-weight: 700;
-            box-shadow: 0 12px 22px rgba(167,64,101,0.18);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Mis pedidos</h1>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Estado</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for pedido in pedidos %}
-                    <tr>
-                        <td>{{ pedido.id }}</td>
-                        <td>{{ pedido.estado }}</td>
-                        <td>{{ pedido.total }}</td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="3">No tienes pedidos registrados.</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <div class="acciones">
-            <a class="button" href="/panel_usuario/">Volver al panel</a>
-            <a class="button" href="/logout/">Cerrar sesión</a>
-        </div>
-    </div>
-</body>
-</html>
+{% block content %}
+    <span class="eyebrow">Mi espacio</span>
+    <h1 class="page-heading">Mis pedidos</h1>
+    <section class="form-card">
+        <h2>Aún no hay pedidos para mostrar</h2>
+        <p class="page-intro">La aplicación no cuenta todavía con pedidos persistentes ni flujo de compra confirmado.</p>
+        <a class="btn" href="{% url 'catalogo' %}">Explorar el catálogo</a>
+    </section>
+{% endblock %}

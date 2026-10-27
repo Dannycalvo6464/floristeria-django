@@ -1,35 +1,31 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Buscar Usuario</title>
-</head>
-<body>
+{% extends "usuarios/base.html" %}
 
-<h1>Buscar Usuario - Flores Cali</h1>
+{% block title %}Buscar usuarios | Flores Cali{% endblock %}
 
-<a href="/panel_admin/">
-    Volver al Panel
-</a>
-
-<form method="post">
-    {% csrf_token %}
-
-    <label>Nombre:</label><br>
-    <input type="text" name="nombre">
-    <button type="submit">Buscar</button>
-
-</form>
-
-<hr>
-
-{% for usuario in usuarios %}
-
-<p><strong>Nombre:</strong> {{ usuario.nombre }}</p>
-<p><strong>Correo:</strong> {{ usuario.correo }}</p>
-
-<hr>
-
-{% endfor %}
-
-</body>
-</html>
+{% block content %}
+    <span class="eyebrow">Administración</span>
+    <h1 class="page-heading">Buscar usuarios</h1>
+    <section class="form-card">
+        <form class="form-grid" method="post">
+            {% csrf_token %}
+            <div class="form-field">
+                <label for="nombre">Nombre a buscar</label>
+                <input id="nombre" name="nombre" type="search" maxlength="100" required>
+            </div>
+            <button class="btn" type="submit">Buscar</button>
+        </form>
+    </section>
+    {% if mensaje %}<p class="message info" role="status">{{ mensaje }}</p>{% endif %}
+    {% if usuarios %}
+        <div class="table-wrap section">
+            <table>
+                <thead><tr><th>Nombre</th><th>Correo</th><th>Tipo</th><th>Estado</th></tr></thead>
+                <tbody>
+                    {% for resultado in usuarios %}
+                        <tr><td>{{ resultado.nombre }}</td><td>{{ resultado.correo }}</td><td>{{ resultado.tipo }}</td><td>{% if resultado.activo %}Activa{% else %}Inactiva{% endif %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}

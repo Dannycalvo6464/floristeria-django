@@ -1,0 +1,66 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fbf8f3">
+    <title>{% block title %}Flores Cali{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'usuarios/css/site.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <header class="site-header">
+        <div class="nav-wrap">
+            <a class="brand" href="{% url 'inicio' %}">
+                <span class="brand-mark" aria-hidden="true">✿</span>
+                <span>Flores Cali</span>
+            </a>
+            <nav class="main-nav" aria-label="Navegación principal">
+                <a href="{% url 'inicio' %}">Inicio</a>
+                <a href="{% url 'catalogo' %}">Catálogo</a>
+                {% if request.session.usuario_id %}
+                    {% if request.session.usuario_tipo == "Admin" or request.session.usuario_tipo == "Administrador" %}
+                        <a href="{% url 'panel_admin' %}">Administración</a>
+                    {% else %}
+                        <a href="{% url 'panel_usuario' %}">Mi espacio</a>
+                    {% endif %}
+                {% endif %}
+            </nav>
+            <div class="nav-actions">
+                <a class="nav-link" href="{% url 'carrito' %}" aria-label="Carrito, {{ carrito_cantidad }} artículos">
+                    Carrito <span class="nav-count">{{ carrito_cantidad }}</span>
+                </a>
+                {% if request.session.usuario_id %}
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button class="btn btn-secondary btn-small" type="submit">Cerrar sesión</button>
+                    </form>
+                {% else %}
+                    <a class="btn btn-secondary btn-small" href="{% url 'login' %}">Iniciar sesión</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container {% block container_class %}{% endblock %}">
+            {% if messages %}
+                <div class="messages" aria-live="polite">
+                    {% for message in messages %}
+                        <div class="message {{ message.tags }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <span>Flores Cali</span>
+            <span>Catálogo demostrativo. Consulta precios y disponibilidad antes de comprar.</span>
+        </div>
+    </footer>
+</body>
+</html>

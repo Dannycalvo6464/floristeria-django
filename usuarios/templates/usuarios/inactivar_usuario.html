@@ -1,41 +1,23 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Inactivar Usuario</title>
-</head>
-<body>
+{% extends "usuarios/base.html" %}
 
-<h1>Inactivar Usuario - Flores Cali</h1>
+{% block title %}Inactivar usuario | Flores Cali{% endblock %}
 
-<a href="/panel_admin/">
-    Volver al Panel
-</a>
-
-<br><br>
-
-<table border="1">
-
-<tr>
-    <th>Nombre</th>
-    <th>Correo</th>
-    <th>Acción</th>
-</tr>
-
-{% for usuario in usuarios %}
-
-<tr>
-    <td>{{ usuario.nombre }}</td>
-    <td>{{ usuario.correo }}</td>
-
-    <td>
-        <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="id" value="{{ usuario.id }}">
-            <button type="submit">Inactivar</button>
-        </form>
-    </td>
-</tr>
-
-{% endfor %}
-
-</table>
+{% block content %}
+    <span class="eyebrow">Administración</span>
+    <h1 class="page-heading">Inactivar usuarios</h1>
+    <section class="panel table-wrap">
+        <table>
+            <thead><tr><th>Nombre</th><th>Correo</th><th>Acción</th></tr></thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                    <tr>
+                        <td>{{ usuario.nombre }}</td><td>{{ usuario.correo }}</td>
+                        <td><form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ usuario.id }}"><button class="btn btn-danger btn-small" type="submit">Inactivar</button></form></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="3">No hay cuentas activas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

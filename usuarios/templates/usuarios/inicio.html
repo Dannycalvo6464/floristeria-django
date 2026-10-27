@@ -1,0 +1,48 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Flores Cali | Flores para cada momento{% endblock %}
+
+{% block content %}
+    <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+            <span class="eyebrow">Detalles que florecen</span>
+            <h1 id="hero-title">Un gesto bonito puede decirlo todo.</h1>
+            <p>Explora nuestro catálogo de flores y encuentra una idea para celebrar, agradecer o acompañar.</p>
+            <div class="hero-actions">
+                <a class="btn" href="{% url 'catalogo' %}">Explorar catálogo</a>
+                <a class="text-link" href="{% url 'login' %}">Ya tengo una cuenta</a>
+            </div>
+        </div>
+        <img class="hero-image"
+             src="{{ productos_destacados.0.imagen }}"
+             alt="{{ productos_destacados.0.alt }}"
+             fetchpriority="high">
+    </section>
+
+    <section class="section" aria-labelledby="featured-title">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">Selección del catálogo</span>
+                <h2 id="featured-title">Flores para inspirarte</h2>
+            </div>
+            <a class="text-link" href="{% url 'catalogo' %}">Ver todo el catálogo</a>
+        </div>
+        <div class="product-grid">
+            {% for producto in productos_destacados %}
+                <article class="product-card">
+                    <a href="{% url 'detalle_producto' producto.slug %}">
+                        <img src="{{ producto.imagen }}" alt="{{ producto.alt }}" loading="lazy">
+                    </a>
+                    <div class="product-body">
+                        <span class="product-category">{{ producto.categoria }}</span>
+                        <h3 class="product-title"><a href="{% url 'detalle_producto' producto.slug %}">{{ producto.nombre }}</a></h3>
+                        <p class="product-description">{{ producto.descripcion }}</p>
+                        <p class="product-price">{{ producto.precio_formateado }}</p>
+                        <span class="price-note">Precio de referencia</span>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        <p class="demo-note">Los productos y precios mostrados son los datos de demostración existentes en el catálogo; confirma la información antes de una compra.</p>
+    </section>
+{% endblock %}

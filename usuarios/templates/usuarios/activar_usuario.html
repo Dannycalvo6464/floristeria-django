@@ -1,54 +1,23 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Activar Usuario</title>
-</head>
-<body>
+{% extends "usuarios/base.html" %}
 
-<h1>Activar Usuario - Flores Cali</h1>
+{% block title %}Activar usuario | Flores Cali{% endblock %}
 
-<a href="/panel_admin/">
-    Volver al Panel
-</a>
-
-
-<table border="1">
-
-<tr>
-    <th>Nombre</th>
-    <th>Correo</th>
-    <th>Acción</th>
-</tr>
-
-{% for usuario in usuarios %}
-
-<tr>
-    <td>{{ usuario.nombre }}</td>
-    <td>{{ usuario.correo }}</td>
-
-    <td>
-        <form method="post">
-            {% csrf_token %}
-
-            <input
-                type="hidden"
-                name="id"
-                value="{{ usuario.id }}"
-            >
-
-            <button type="submit">
-                Activar
-            </button>
-
-        </form>
-    </td>
-
-</tr>
-
-
-{% endfor %}
-
-</table>
-
-</body>
-</html>
+{% block content %}
+    <span class="eyebrow">Administración</span>
+    <h1 class="page-heading">Activar usuarios</h1>
+    <section class="panel table-wrap">
+        <table>
+            <thead><tr><th>Nombre</th><th>Correo</th><th>Acción</th></tr></thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                    <tr>
+                        <td>{{ usuario.nombre }}</td><td>{{ usuario.correo }}</td>
+                        <td><form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ usuario.id }}"><button class="btn btn-small" type="submit">Activar</button></form></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="3">No hay cuentas inactivas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

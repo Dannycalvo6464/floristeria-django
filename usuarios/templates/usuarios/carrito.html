@@ -1,0 +1,52 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Carrito | Flores Cali{% endblock %}
+
+{% block content %}
+    <span class="eyebrow">Tu selección</span>
+    <h1 class="page-heading">Carrito</h1>
+    <p class="page-intro">Revisa los productos y ajusta las cantidades antes de continuar.</p>
+    <div class="notice">
+        Carrito de demostración: no reserva inventario, crea pedidos ni procesa pagos.
+        Los subtotales usan los precios de referencia del catálogo.
+    </div>
+
+    {% if productos_carrito %}
+        <section class="panel">
+            {% for producto in productos_carrito %}
+                <article class="cart-line">
+                    <img src="{{ producto.imagen }}" alt="{{ producto.alt }}" loading="lazy">
+                    <div>
+                        <span class="product-category">{{ producto.categoria }}</span>
+                        <h2>{{ producto.nombre }}</h2>
+                        <p class="help-text">{{ producto.precio_formateado }} × {{ producto.cantidad }} = {{ producto.subtotal_formateado }}</p>
+                    </div>
+                    <div class="cart-controls">
+                        <form class="inline-form" method="post" action="{% url 'actualizar_carrito' producto.slug %}">
+                            {% csrf_token %}
+                            <div class="form-field">
+                                <label for="cantidad-{{ producto.slug }}">Cantidad</label>
+                                <input id="cantidad-{{ producto.slug }}" name="cantidad" type="number" min="1" step="1" value="{{ producto.cantidad }}" required>
+                            </div>
+                            <button class="btn btn-secondary btn-small" type="submit">Actualizar</button>
+                        </form>
+                        <form method="post" action="{% url 'quitar_del_carrito' producto.slug %}">
+                            {% csrf_token %}
+                            <button class="btn btn-danger btn-small" type="submit">Quitar</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+            <div class="cart-total"><span>Total de referencia</span><span>{{ total }}</span></div>
+            <div class="cart-actions">
+                <a class="btn btn-secondary" href="{% url 'catalogo' %}">Seguir explorando</a>
+            </div>
+        </section>
+    {% else %}
+        <section class="form-card">
+            <h2>Tu carrito está vacío</h2>
+            <p class="page-intro">Explora el catálogo y agrega los productos que te interesen.</p>
+            <a class="btn" href="{% url 'catalogo' %}">Ver catálogo</a>
+        </section>
+    {% endif %}
+{% endblock %}

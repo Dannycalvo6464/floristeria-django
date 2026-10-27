@@ -1,13 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Panel</title>
-</head>
-<body>
+{% extends "usuarios/base.html" %}
 
-<h1>Bienvenido {{ usuario.nombre }}</h1>
+{% block title %}Mi espacio | Flores Cali{% endblock %}
 
-<p>Tipo: {{ usuario.tipo }}</p>
-
-</body>
-</html>
+{% block content %}
+    <span class="eyebrow">Flores Cali</span>
+    <h1 class="page-heading">Mi espacio</h1>
+    <div class="dashboard-grid">
+        <a class="dashboard-card" href="{% url 'panel_usuario' %}">Mi cuenta<span>Abre el panel de tu cuenta.</span></a>
+        <a class="dashboard-card" href="{% url 'catalogo' %}">Catálogo<span>Explora nuestros arreglos de demostración.</span></a>
+        <a class="dashboard-card" href="{% url 'carrito' %}">Carrito<span>Revisa los productos seleccionados.</span></a>
+    </div>
+{% endblock %}

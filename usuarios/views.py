@@ -1,4 +1,6 @@
+import logging
 import secrets
+import smtplib
 import time
 from functools import wraps
 
@@ -6,13 +8,26 @@ from django.contrib.auth.hashers import check_password, identify_hasher, make_pa
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.http import Http404, HttpResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, render, redirect
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST
 from django.utils.crypto import constant_time_compare
-from django.http import HttpResponse, HttpResponseForbidden
-from django.shortcuts import render, redirect
 from django.db.models import Q
 from django.conf import settings
+from django.contrib import messages
 
+from .catalog import (
+    PRODUCTOS,
+    PRODUCTOS_POR_SLUG,
+    RECOMENDACIONES,
+    formato_cop,
+    producto_para_vista,
+)
 from .models import Usuario
+
+
+logger = logging.getLogger(__name__)
 
 
 def _verify_and_upgrade_password(usuario, raw_password):
@@ -56,9 +71,18 @@ def _session_required(admin_only=False):
             if admin_only and usuario.tipo not in {'Admin', 'Administrador'}:
                 return HttpResponseForbidden('No tienes permiso para realizar esta acción.')
             request.current_usuario = usuario
-            return view(request, *args, **kwargs)
+            response = view(request, *args, **kwargs)
+            return never_cache(lambda _request: response)(request)
         return wrapped
     return decorator
+
+
+def inicio(request):
+    return render(
+        request,
+        "usuarios/inicio.html",
+        {"productos_destacados": [producto_para_vista(p) for p in PRODUCTOS[:3]]},
+    )
 
 
 def login_usuario(request):
@@ -94,10 +118,6 @@ def login_usuario(request):
         "usuarios/login.html",
         {"mensaje": mensaje}
     )
-
-
-def inicio(request):
-    return HttpResponse("<h1>Bienvenido a Flores Cali</h1>")
 
 
 def crear_usuario(request):
@@ -153,6 +173,7 @@ def recuperar_contrasena(request):
                 request.session.pop(codigo_sesion_key, None)
                 request.session.pop("recuperar_email", None)
                 request.session.pop("recuperar_expira", None)
+                request.session.pop("recuperar_intentos", None)
                 mensaje = "La solicitud de recuperación ha expirado. Solicita un nuevo código."
             elif intentos >= 5 or not check_password(codigo_ingresado, codigo_guardado):
                 intentos += 1
@@ -189,19 +210,29 @@ def recuperar_contrasena(request):
                 {
                     "mensaje": mensaje,
                     "correo": correo_guardado,
-                    "en_espera": True,
+                    "en_espera": bool(
+                        request.session.get(codigo_sesion_key)
+                        and request.session.get("recuperar_email")
+                    ),
                 }
             )
 
         correo_solicitado = request.POST.get("correo", "").strip()
-        mensaje = "Si existe una cuenta activa y el correo está configurado, recibirás instrucciones."
+        if not settings.EMAIL_HOST or not settings.DEFAULT_FROM_EMAIL:
+            mensaje = (
+                "La recuperación por correo aún no está configurada. "
+                "El administrador debe definir EMAIL_HOST, EMAIL_PORT, "
+                "EMAIL_HOST_USER, EMAIL_HOST_PASSWORD y DEFAULT_FROM_EMAIL en Render."
+            )
+            return render(
+                request,
+                "usuarios/recuperar_contrasena.html",
+                {"mensaje": mensaje, "correo": correo, "en_espera": en_espera},
+            )
+
+        mensaje = "Si existe una cuenta activa, recibirás instrucciones."
         usuario = Usuario.objects.filter(correo__iexact=correo_solicitado, activo=True).first()
-        if (
-            correo_solicitado
-            and usuario
-            and settings.EMAIL_HOST
-            and settings.DEFAULT_FROM_EMAIL
-        ):
+        if correo_solicitado and usuario:
             codigo = f"{secrets.randbelow(900000) + 100000}"
             try:
                 sent = send_mail(
@@ -211,7 +242,8 @@ def recuperar_contrasena(request):
                     [usuario.correo],
                     fail_silently=False,
                 )
-            except Exception:
+            except (OSError, smtplib.SMTPException):
+                logger.exception("No se pudo enviar el correo de recuperación.")
                 sent = 0
             if sent:
                 request.session[codigo_sesion_key] = make_password(codigo)
@@ -221,6 +253,11 @@ def recuperar_contrasena(request):
                 request.session.set_expiry(600)
                 correo = usuario.correo
                 en_espera = True
+            else:
+                mensaje = (
+                    "No se pudo enviar el correo de recuperación. "
+                    "Inténtalo más tarde o contacta al administrador."
+                )
 
     return render(
         request,
@@ -236,18 +273,21 @@ def recuperar_contrasena(request):
 @_session_required(admin_only=True)
 def buscar_usuario(request):
     usuarios = []
+    mensaje = ""
 
     if request.method == "POST":
-        nombre = request.POST["nombre"]
-
-        usuarios = Usuario.objects.filter(
-            nombre__icontains=nombre
-        )
+        nombre = request.POST.get("nombre", "").strip()
+        if nombre:
+            usuarios = Usuario.objects.filter(nombre__icontains=nombre)
+            if not usuarios:
+                mensaje = "No encontramos usuarios con ese nombre."
+        else:
+            mensaje = "Escribe un nombre para iniciar la búsqueda."
 
     return render(
         request,
         "usuarios/buscar_usuario.html",
-        {"usuarios": usuarios}
+        {"usuarios": usuarios, "mensaje": mensaje}
     )
 
 
@@ -258,30 +298,32 @@ def actualizar_usuario(request):
     if request.method == "POST":
 
         if "buscar" in request.POST:
-            nombre = request.POST["nombre"]
-            usuario = Usuario.objects.filter(
-                nombre__icontains=nombre
-            ).first()
+            nombre = request.POST.get("nombre", "").strip()
+            if nombre:
+                usuario = Usuario.objects.filter(nombre__icontains=nombre).first()
+            if not usuario:
+                messages.error(request, "No encontramos una cuenta con ese nombre.")
 
         elif "actualizar" in request.POST:
-            usuario = Usuario.objects.get(
-                id=request.POST["id"]
-            )
-
-            usuario.nombre = request.POST["nombre"]
-            usuario.correo = request.POST["correo"]
+            usuario = get_object_or_404(Usuario, id=request.POST.get("id"))
+            usuario.nombre = request.POST.get("nombre", "").strip()
+            usuario.correo = request.POST.get("correo", "").strip()
             nueva_contrasena = request.POST.get("contrasena", "")
             if nueva_contrasena:
                 error_contrasena = _password_error(nueva_contrasena)
                 if error_contrasena:
-                    return HttpResponse(error_contrasena, status=400)
+                    messages.error(request, error_contrasena)
+                    return render(
+                        request,
+                        "usuarios/actualizar_usuario.html",
+                        {"usuario": usuario},
+                        status=400,
+                    )
                 usuario.contrasena = make_password(nueva_contrasena)
 
             usuario.save()
-
-            return HttpResponse(
-                "Usuario actualizado correctamente"
-            )
+            messages.success(request, "Usuario actualizado correctamente.")
+            return redirect("actualizar_usuario")
 
     return render(
         request,
@@ -296,16 +338,12 @@ def inactivar_usuario(request):
 
     if request.method == "POST":
 
-        usuario = Usuario.objects.get(
-            id=request.POST["id"]
-        )
+        usuario = get_object_or_404(Usuario, id=request.POST.get("id"), activo=True)
 
         usuario.activo = False
         usuario.save()
-
-        return HttpResponse(
-            "Usuario inactivado correctamente"
-        )
+        messages.success(request, "Usuario inactivado correctamente.")
+        return redirect("inactivar_usuario")
 
     return render(
         request,
@@ -321,16 +359,12 @@ def activar_usuario(request):
 
     if request.method == "POST":
 
-        usuario = Usuario.objects.get(
-            id=request.POST["id"]
-        )
+        usuario = get_object_or_404(Usuario, id=request.POST.get("id"), activo=False)
 
         usuario.activo = True
         usuario.save()
-
-        return HttpResponse(
-            "Usuario activado correctamente"
-        )
+        messages.success(request, "Usuario activado correctamente.")
+        return redirect("activar_usuario")
 
     return render(
         request,
@@ -358,73 +392,171 @@ def panel_usuario(request):
 
 
 def ver_catalogo(request):
-    productos = [
-        {
-            "nombre": "Rosa Roja",
-            "precio": "$12.000",
-            "descripcion": "Rosas intensas y románticas para expresar amor, pasión y complicidad.",
-            "disponibilidad": "En stock",
-            "imagen": "https://images.unsplash.com/photo-1525310072745-f49212b5ac6d?auto=format&fit=crop&w=900&q=80",
-        },
-        {
-            "nombre": "Ramo de Tulipanes",
-            "precio": "$18.000",
-            "descripcion": "Tulipanes frescos y coloridos ideales para alegrar un día especial.",
-            "disponibilidad": "Pocas unidades",
-            "imagen": "https://images.unsplash.com/photo-1468327768560-75b778cbb551?auto=format&fit=crop&w=900&q=80",
-        },
-        {
-            "nombre": "Orquídea Blanca",
-            "precio": "$22.000",
-            "descripcion": "Elegancia y sofisticación para momentos formales y regalos muy especiales.",
-            "disponibilidad": "En stock",
-            "imagen": "https://images.unsplash.com/photo-1526047932273-341f2a7631f9?auto=format&fit=crop&w=900&q=80",
-        },
-        {
-            "nombre": "Lirio del Valle",
-            "precio": "$16.500",
-            "descripcion": "Fragancia suave y apariencia delicada para ocasiones sensibles y emotivas.",
-            "disponibilidad": "En stock",
-            "imagen": "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80",
-        },
-    ]
+    consulta = request.GET.get("q", "").strip()
+    categoria = request.GET.get("categoria", "").strip()
+    categorias = sorted({producto["categoria"] for producto in PRODUCTOS})
+    productos = list(PRODUCTOS)
+    mensaje_busqueda = ""
 
-    recomendaciones = [
-        {
-            "titulo": "Aniversario",
-            "texto": "Las rosas rojas combinadas con un arreglo elegante transmiten amor y celebración.",
-        },
-        {
-            "titulo": "Cumpleaños",
-            "texto": "Los tulipanes y mezclas de colores vivos son una opción alegre y vibrante.",
-        },
-        {
-            "titulo": "Agradecimiento",
-            "texto": "Las orquídeas aportan refinamiento y una sensación de gratitud sincera.",
-        },
-        {
-            "titulo": "Condolencias",
-            "texto": "Los lirios y arreglos sobrios expresan respeto, calma y apoyo en momentos difíciles.",
-        },
-    ]
+    if len(consulta) > 100:
+        consulta = consulta[:100]
+        mensaje_busqueda = "La búsqueda se limitó a 100 caracteres."
+    if consulta:
+        productos = [
+            producto for producto in productos
+            if producto["nombre"].casefold() == consulta.casefold()
+        ]
+        if not productos:
+            mensaje_busqueda = "No encontramos una flor con ese nombre exacto."
 
+    if categoria:
+        if categoria not in categorias:
+            productos = []
+            mensaje_busqueda = "Selecciona un tipo de flor disponible en el catálogo."
+        else:
+            productos = [
+                producto for producto in productos
+                if producto["categoria"] == categoria
+            ]
+            if not productos and not mensaje_busqueda:
+                mensaje_busqueda = "No hay resultados con esos criterios."
+
+    recomendaciones = []
+    for recomendacion in RECOMENDACIONES:
+        producto = next(
+            (p for p in PRODUCTOS if p["categoria"] == recomendacion["categoria"]),
+            None,
+        )
+        if producto:
+            recomendaciones.append({**recomendacion, "producto": producto})
     return render(
         request,
         "usuarios/catalogo.html",
-        {"productos": productos, "recomendaciones": recomendaciones}
+        {
+            "productos": [producto_para_vista(p) for p in productos],
+            "categorias": categorias,
+            "categoria_seleccionada": categoria,
+            "consulta": consulta,
+            "mensaje_busqueda": mensaje_busqueda,
+            "recomendaciones": recomendaciones,
+            "formato_cop": formato_cop,
+        },
     )
+
+
+def detalle_producto(request, slug):
+    producto = PRODUCTOS_POR_SLUG.get(slug)
+    if not producto:
+        raise Http404("Producto no encontrado")
+    return render(
+        request,
+        "usuarios/detalle_producto.html",
+        {"producto": producto_para_vista(producto)},
+    )
+
+
+@require_POST
+def agregar_al_carrito(request, slug):
+    producto = PRODUCTOS_POR_SLUG.get(slug)
+    if not producto:
+        raise Http404("Producto no encontrado")
+
+    try:
+        cantidad = int(request.POST.get("cantidad", ""))
+    except (TypeError, ValueError):
+        cantidad = 0
+    if cantidad < 1:
+        messages.error(request, "Ingresa una cantidad entera mayor que cero.")
+        return redirect("detalle_producto", slug=slug)
+
+    carrito = request.session.get("carrito", {})
+    if not isinstance(carrito, dict):
+        carrito = {}
+    actual = carrito.get(slug, 0)
+    if not isinstance(actual, int) or isinstance(actual, bool) or actual < 0:
+        actual = 0
+    carrito[slug] = actual + cantidad
+    request.session["carrito"] = carrito
+    messages.success(request, f"{producto['nombre']} se agregó al carrito.")
+    return redirect("carrito")
+
+
+def ver_carrito(request):
+    carrito_sesion = request.session.get("carrito", {})
+    if not isinstance(carrito_sesion, dict):
+        carrito_sesion = {}
+
+    productos_carrito = []
+    carrito_limpio = {}
+    total = 0
+    for slug, cantidad in carrito_sesion.items():
+        producto = PRODUCTOS_POR_SLUG.get(slug)
+        if (
+            not producto
+            or not isinstance(cantidad, int)
+            or isinstance(cantidad, bool)
+            or cantidad < 1
+        ):
+            continue
+        subtotal = producto["precio"] * cantidad
+        total += subtotal
+        productos_carrito.append(
+            {
+                **producto_para_vista(producto),
+                "cantidad": cantidad,
+                "subtotal_formateado": formato_cop(subtotal),
+            }
+        )
+        carrito_limpio[slug] = cantidad
+
+    if carrito_limpio != carrito_sesion:
+        request.session["carrito"] = carrito_limpio
+    return render(
+        request,
+        "usuarios/carrito.html",
+        {
+            "productos_carrito": productos_carrito,
+            "total": formato_cop(total),
+        },
+    )
+
+
+@require_POST
+def actualizar_carrito(request, slug):
+    if slug not in PRODUCTOS_POR_SLUG:
+        raise Http404("Producto no encontrado")
+    try:
+        cantidad = int(request.POST.get("cantidad", ""))
+    except (TypeError, ValueError):
+        cantidad = 0
+    if cantidad < 1:
+        messages.error(request, "La cantidad debe ser un entero mayor que cero.")
+        return redirect("carrito")
+    carrito = request.session.get("carrito", {})
+    if not isinstance(carrito, dict) or slug not in carrito:
+        messages.error(request, "Ese producto ya no está en el carrito.")
+        return redirect("carrito")
+    carrito[slug] = cantidad
+    request.session["carrito"] = carrito
+    messages.success(request, "Cantidad actualizada.")
+    return redirect("carrito")
+
+
+@require_POST
+def quitar_del_carrito(request, slug):
+    carrito = request.session.get("carrito", {})
+    if isinstance(carrito, dict) and slug in carrito:
+        carrito.pop(slug)
+        request.session["carrito"] = carrito
+        messages.success(request, "Producto eliminado del carrito.")
+    return redirect("carrito")
 
 
 @_session_required()
 def mis_pedidos(request):
-    pedidos = [
-        {"id": "PED-101", "estado": "Entregado", "total": "$19.000"},
-        {"id": "PED-102", "estado": "En tránsito", "total": "$25.500"},
-    ]
     return render(
         request,
         "usuarios/mis_pedidos.html",
-        {"pedidos": pedidos}
     )
 
 
@@ -437,6 +569,7 @@ def mi_perfil(request):
     )
 
 
+@require_POST
 def logout_usuario(request):
     request.session.flush()
     return redirect("login")

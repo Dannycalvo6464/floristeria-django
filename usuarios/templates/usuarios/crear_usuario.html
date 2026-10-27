@@ -1,160 +1,31 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crear Usuario - Flores Cali</title>
-    <style>
-        :root {
-            --bg: #f7ebf0;
-            --card: rgba(255,255,255,0.78);
-            --pink: #c56d86;
-            --pink-deep: #9d3d61;
-            --text: #3a2e31;
-            --muted: #7d636a;
-            --line: rgba(169, 111, 132, 0.5);
-            --shadow: rgba(150, 94, 118, 0.15);
-        }
+{% extends "usuarios/base.html" %}
 
-        * { box-sizing: border-box; }
+{% block title %}Crear cuenta | Flores Cali{% endblock %}
+{% block container_class %}narrow{% endblock %}
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: "Segoe UI", Tahoma, sans-serif;
-            background: linear-gradient(135deg, #f6ebf0 0%, #f5f0f2 100%);
-            color: var(--text);
-            padding: 24px;
-        }
-
-        .login-box {
-            width: min(92%, 520px);
-            background: var(--card);
-            border-radius: 28px;
-            box-shadow: 0 18px 38px var(--shadow);
-            padding: 30px 34px 28px;
-            border: 1px solid rgba(170, 122, 138, 0.08);
-        }
-
-        .brand {
-            text-align: center;
-            font-weight: 900;
-            font-size: clamp(2.5rem, 3vw, 4rem);
-            line-height: 1.1;
-            letter-spacing: -0.06em;
-            color: var(--pink-deep);
-            margin-bottom: 8px;
-        }
-
-        .subtitle {
-            text-align: center;
-            margin: 0 0 26px;
-            font-size: clamp(1.5rem, 2vw, 2.3rem);
-            color: var(--text);
-            font-weight: 700;
-        }
-
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        label {
-            display: block;
-            font-size: 1.05rem;
-            color: var(--text);
-            font-weight: 700;
-            margin-bottom: 2px;
-        }
-
-        input {
-            width: 100%;
-            background: rgba(255,255,255,0.25);
-            border: 1px solid var(--line);
-            border-radius: 0;
-            padding: 13px 12px;
-            font-size: 1.05rem;
-            outline: none;
-            color: var(--text);
-        }
-
-        input:focus {
-            border-color: var(--pink);
-            box-shadow: 0 0 0 3px rgba(197, 109, 134, 0.08);
-        }
-
-        button {
-            margin-top: 10px;
-            background: linear-gradient(135deg, #c26a84, #9f3d61);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 14px 18px;
-            font-size: 1.05rem;
-            font-weight: 800;
-            cursor: pointer;
-            box-shadow: 0 12px 22px rgba(160, 83, 112, 0.2);
-            width: 100%;
-        }
-
-        .link-row {
-            margin-top: 18px;
-            text-align: center;
-        }
-
-        .link-row a {
-            display: inline-block;
-            text-decoration: none;
-            color: var(--text);
-            font-weight: 600;
-            font-size: 1.04rem;
-            line-height: 1.5;
-        }
-
-        .mensaje {
-            min-height: 22px;
-            margin: 16px 0 0;
-            text-align: center;
-            color: #b12536;
-            font-weight: 700;
-        }
-    </style>
-</head>
-<body>
-    <div class="login-box">
-        <div class="brand">Flores Cali</div>
-        <h2 class="subtitle">Crear Usuario</h2>
-
-        <form method="post">
+{% block content %}
+    <span class="eyebrow">Bienvenido a Flores Cali</span>
+    <h1 class="page-heading">Crea tu cuenta</h1>
+    <p class="page-intro">Completa tus datos para registrarte.</p>
+    <section class="form-card">
+        {% if mensaje %}<p class="message error" role="alert">{{ mensaje }}</p>{% endif %}
+        <form class="form-grid" method="post">
             {% csrf_token %}
-
-            <div>
+            <div class="form-field">
                 <label for="nombre">Nombre</label>
-                <input type="text" id="nombre" name="nombre" required>
+                <input type="text" id="nombre" name="nombre" maxlength="100" autocomplete="name" required>
             </div>
-
-            <div>
-                <label for="correo">Correo</label>
-                <input type="email" id="correo" name="correo" required>
+            <div class="form-field">
+                <label for="correo">Correo electrónico</label>
+                <input type="email" id="correo" name="correo" maxlength="100" autocomplete="email" required>
             </div>
-
-            <div>
+            <div class="form-field">
                 <label for="contrasena">Contraseña</label>
-                <input type="password" id="contrasena" name="contrasena" required>
+                <input type="password" id="contrasena" name="contrasena" autocomplete="new-password" required>
+                <p class="help-text">Usa una contraseña que no reutilices en otros sitios.</p>
             </div>
-
-            <button type="submit">Guardar</button>
+            <button class="btn" type="submit">Crear cuenta</button>
         </form>
-
-        <div class="link-row">
-            <a href="/">Volver al login</a>
-        </div>
-
-        <p class="mensaje">{{ mensaje }}</p>
-    </div>
-</body>
-</html>
+        <p class="help-text">¿Ya tienes una cuenta? <a class="text-link" href="{% url 'login' %}">Inicia sesión</a>.</p>
+    </section>
+{% endblock %}

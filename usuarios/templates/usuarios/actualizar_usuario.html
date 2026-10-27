@@ -1,74 +1,29 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Actualizar Usuario</title>
-</head>
-<body>
+{% extends "usuarios/base.html" %}
 
-<h1>Actualizar Usuario - Flores Cali</h1>
+{% block title %}Actualizar usuario | Flores Cali{% endblock %}
 
-<a href="/panel_admin/">
-    Volver al Panel
-</a>
-
-<form method="post">
-    {% csrf_token %}
-
-    <label>Nombre a buscar:</label><br>
-    <input type="text" name="nombre">
-    <button type="submit" name="buscar">
-        Buscar
-    </button>
-</form>
-
-<hr>
-
-{% if usuario %}
-
-<form method="post">
-    {% csrf_token %}
-
-    <input
-        type="hidden"
-        name="id"
-        value="{{ usuario.id }}"
-    >
-
-    <label>Nombre:</label><br>
-    <input
-        type="text"
-        name="nombre"
-        value="{{ usuario.nombre }}"
-    >
-    <br><br>
-
-    <label>Correo:</label><br>
-    <input
-        type="email"
-        name="correo"
-        value="{{ usuario.correo }}"
-    >
-    <br><br>
-
-    <label>Nueva contraseña (déjala vacía para conservarla):</label><br>
-    <input
-        type="password"
-        name="contrasena"
-        autocomplete="new-password"
-    >
-    <br><br>
-
-    <button
-        type="submit"
-        name="actualizar"
-    >
-        Actualizar
-    </button>
-
-</form>
-
-
-{% endif %}
-
-</body>
-</html>
+{% block content %}
+    <span class="eyebrow">Administración</span>
+    <h1 class="page-heading">Actualizar usuario</h1>
+    <section class="form-card">
+        <form class="form-grid" method="post">
+            {% csrf_token %}
+            <div class="form-field">
+                <label for="buscar-nombre">Buscar por nombre</label>
+                <input id="buscar-nombre" name="nombre" maxlength="100" required>
+            </div>
+            <button class="btn btn-secondary" type="submit" name="buscar" value="1">Buscar</button>
+        </form>
+        {% if usuario %}
+            <hr>
+            <form class="form-grid" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="id" value="{{ usuario.id }}">
+                <div class="form-field"><label for="nombre">Nombre</label><input id="nombre" name="nombre" value="{{ usuario.nombre }}" maxlength="100" required></div>
+                <div class="form-field"><label for="correo">Correo</label><input id="correo" name="correo" type="email" value="{{ usuario.correo }}" maxlength="100" required></div>
+                <div class="form-field"><label for="contrasena">Nueva contraseña (opcional)</label><input id="contrasena" name="contrasena" type="password" autocomplete="new-password"></div>
+                <button class="btn" type="submit" name="actualizar" value="1">Guardar cambios</button>
+            </form>
+        {% endif %}
+    </section>
+{% endblock %}

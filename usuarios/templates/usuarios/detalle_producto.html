@@ -1,0 +1,26 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}{{ producto.nombre }} | Flores Cali{% endblock %}
+
+{% block content %}
+    <p><a class="text-link" href="{% url 'catalogo' %}">← Volver al catálogo</a></p>
+    <section class="detail-layout">
+        <img class="detail-image" src="{{ producto.imagen }}" alt="{{ producto.alt }}">
+        <div class="panel detail-panel">
+            <span class="product-category">{{ producto.categoria }}</span>
+            <h1>{{ producto.nombre }}</h1>
+            <p>{{ producto.descripcion }}</p>
+            <p class="product-price">{{ producto.precio_formateado }}</p>
+            <p class="price-note">Precio de referencia. Disponibilidad por confirmar.</p>
+            <form class="form-grid" method="post" action="{% url 'agregar_al_carrito' producto.slug %}">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label for="cantidad">Unidades</label>
+                    <input id="cantidad" name="cantidad" type="number" min="1" step="1" value="1" required>
+                    <p class="help-text">El catálogo demostrativo no tiene inventario disponible para validar existencias.</p>
+                </div>
+                <button class="btn" type="submit">Agregar al carrito</button>
+            </form>
+        </div>
+    </section>
+{% endblock %}
