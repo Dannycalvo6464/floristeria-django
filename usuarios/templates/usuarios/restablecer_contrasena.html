@@ -1,0 +1,34 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Nueva contraseña | Flores Cali{% endblock %}
+{% block container_class %}narrow{% endblock %}
+
+{% block content %}
+    <span class="eyebrow">Seguridad de tu cuenta</span>
+    <h1 class="page-heading">Nueva contraseña</h1>
+    <section class="form-card">
+        {% if exito %}
+            <p class="message success" role="status">Tu contraseña se actualizó. Ya puedes iniciar sesión.</p>
+            <p class="help-text"><a class="text-link" href="{% url 'login' %}">Iniciar sesión</a></p>
+        {% elif token %}
+            {% if mensaje %}<p class="message error" role="alert">{{ mensaje }}</p>{% endif %}
+            <form class="form-grid" method="post">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label for="nueva_contrasena">Nueva contraseña</label>
+                    <input type="password" id="nueva_contrasena" name="nueva_contrasena" autocomplete="new-password" required>
+                </div>
+                <div class="form-field">
+                    <label for="confirmar_contrasena">Confirma la nueva contraseña</label>
+                    <input type="password" id="confirmar_contrasena" name="confirmar_contrasena" autocomplete="new-password" required>
+                </div>
+                <button class="btn" type="submit">Guardar contraseña</button>
+            </form>
+        {% else %}
+            <p class="message error" role="alert">{{ mensaje }}</p>
+            <p class="help-text">
+                <a class="text-link" href="{% url 'recuperar_contrasena' %}">Solicitar otro enlace</a>
+            </p>
+        {% endif %}
+    </section>
+{% endblock %}

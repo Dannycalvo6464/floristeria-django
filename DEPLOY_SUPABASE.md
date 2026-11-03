@@ -16,7 +16,7 @@ Actualiza el servicio web existente conectado al repositorio actual; no hace fal
 
 La configuración de seguridad activa cookies Secure/HttpOnly, redirección HTTPS, proxy HTTPS y HSTS cuando `DJANGO_DEBUG=false`. No pongas `https://` en `DJANGO_ALLOWED_HOSTS`; sí se necesita en `DJANGO_CSRF_TRUSTED_ORIGINS`.
 
-Para recuperación de contraseña, configura un proveedor de correo:
+La recuperación envía un enlace firmado a las cuentas activas. El enlace vence en 10 minutos, queda invalidado después de usarse o cambiar la contraseña/correo y no se muestra en la página. Configura un proveedor de correo:
 
 | Variable | Uso |
 | --- | --- |
@@ -29,7 +29,7 @@ Para recuperación de contraseña, configura un proveedor de correo:
 | `EMAIL_USE_TLS` | `true` con STARTTLS (habitualmente puerto 587). |
 | `EMAIL_USE_SSL` | `true` solo si el proveedor requiere TLS implícito; no combinar con `EMAIL_USE_TLS`. |
 
-En Render puedes usar `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` y un `DEFAULT_FROM_EMAIL` aprobado por Resend. Mantén la clave como variable privada; nunca la guardes en Git ni la compartas por chat. Las cuentas/remitentes de prueba del proveedor pueden tener restricciones de destinatario hasta verificar un dominio. La aplicación maneja fallos del proveedor sin devolver un error 500. Los códigos nunca se muestran en pantalla ni se escriben en consola.
+En Render puedes usar `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` y un `DEFAULT_FROM_EMAIL` aprobado por Resend. Mantén la clave como variable privada; nunca la guardes en Git ni la compartas por chat. Las cuentas/remitentes de prueba del proveedor pueden tener restricciones de destinatario hasta verificar un dominio. La aplicación maneja fallos del proveedor sin devolver un error 500. Los enlaces no se muestran en pantalla ni se escriben en consola.
 
 ## Comandos del servicio
 
