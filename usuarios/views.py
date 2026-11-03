@@ -1,6 +1,8 @@
 import logging
 import json
+import secrets
 import smtplib
+import time
 import unicodedata
 from functools import wraps
 from urllib.error import HTTPError, URLError
@@ -40,6 +42,8 @@ from .models import DetalleSolicitudPedido, SolicitudPedido, Usuario
 logger = logging.getLogger(__name__)
 PASSWORD_RESET_SALT = "usuarios.password-reset"
 PASSWORD_RESET_MAX_AGE = 10 * 60
+RECOVERY_CODE_TTL = 10 * 60
+RECOVERY_CODE_MAX_ATTEMPTS = 5
 
 
 def _create_password_reset_token(usuario):
@@ -89,24 +93,23 @@ def _get_password_reset_user(token):
     return usuario
 
 
-def _recovery_email_content(reset_url):
-    subject = "Restablece tu contraseña de Flores Cali"
+def _recovery_email_content(code):
+    subject = "Código para recuperar tu cuenta de Flores Cali"
     body = (
-        "Recibimos una solicitud para restablecer la contraseña de tu cuenta.\n\n"
-        f"Abre este enlace para elegir una nueva contraseña (vence en 10 minutos):\n{reset_url}\n\n"
+        f"Tu código de recuperación es {code}. Vence en 10 minutos.\n\n"
         "Si no solicitaste el cambio, ignora este correo."
     )
     html_body = format_html(
-        "<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>"
-        "<p><a href=\"{}\">Crear una nueva contraseña</a></p>"
-        "<p>Este enlace vence en 10 minutos. Si no solicitaste el cambio, ignora este correo.</p>",
-        reset_url,
+        "<p>Tu código de recuperación es <strong>{}</strong>. "
+        "Vence en 10 minutos.</p>"
+        "<p>Si no solicitaste el cambio, ignora este correo.</p>",
+        code,
     )
     return subject, body, str(html_body)
 
 
-def _send_recovery_email(recipient, reset_url):
-    subject, body, html_body = _recovery_email_content(reset_url)
+def _send_recovery_email(recipient, code):
+    subject, body, html_body = _recovery_email_content(code)
 
     if settings.EMAIL_PROVIDER == "resend":
         if not settings.RESEND_API_KEY:
@@ -281,7 +284,92 @@ def crear_usuario(request):
 @never_cache
 def recuperar_contrasena(request):
     mensaje = ""
+    correo = request.session.get("recuperar_email", "")
+    en_espera = bool(
+        request.session.get("recuperar_codigo_hash") and correo
+    )
+
     if request.method == "POST":
+        if "codigo" in request.POST:
+            codigo_ingresado = request.POST.get("codigo", "").strip()
+            nueva_contrasena = request.POST.get("nueva_contrasena", "")
+            codigo_guardado = request.session.get("recuperar_codigo_hash")
+            correo_guardado = request.session.get("recuperar_email")
+            vencimiento = request.session.get("recuperar_expira", 0)
+            intentos = request.session.get("recuperar_intentos", 0)
+
+            if (
+                not codigo_guardado
+                or not correo_guardado
+                or time.time() > vencimiento
+            ):
+                for key in (
+                    "recuperar_codigo_hash",
+                    "recuperar_email",
+                    "recuperar_expira",
+                    "recuperar_intentos",
+                ):
+                    request.session.pop(key, None)
+                mensaje = "La solicitud de recuperación ha expirado. Solicita un nuevo código."
+                en_espera = False
+            elif (
+                intentos >= RECOVERY_CODE_MAX_ATTEMPTS
+                or not check_password(codigo_ingresado, codigo_guardado)
+            ):
+                intentos += 1
+                request.session["recuperar_intentos"] = intentos
+                if intentos >= RECOVERY_CODE_MAX_ATTEMPTS:
+                    for key in (
+                        "recuperar_codigo_hash",
+                        "recuperar_email",
+                        "recuperar_expira",
+                        "recuperar_intentos",
+                    ):
+                        request.session.pop(key, None)
+                    en_espera = False
+                    mensaje = "Superaste el número de intentos. Solicita un nuevo código."
+                else:
+                    mensaje = "El código de confirmación no es correcto."
+            elif not nueva_contrasena:
+                mensaje = "Debes ingresar una nueva contraseña."
+            else:
+                mensaje = _password_error(nueva_contrasena)
+                usuario = Usuario.objects.filter(
+                    correo__iexact=correo_guardado,
+                    activo=True,
+                ).first()
+                if usuario and not mensaje:
+                    usuario.contrasena = make_password(nueva_contrasena)
+                    usuario.save(update_fields=["contrasena"])
+                    for key in (
+                        "recuperar_codigo_hash",
+                        "recuperar_email",
+                        "recuperar_expira",
+                        "recuperar_intentos",
+                    ):
+                        request.session.pop(key, None)
+                    return render(
+                        request,
+                        "usuarios/recuperar_contrasena.html",
+                        {
+                            "mensaje": "Tu contraseña se ha actualizado correctamente.",
+                            "exito": True,
+                        },
+                    )
+                elif not usuario:
+                    mensaje = "No se pudo completar la recuperación. Solicita un nuevo código."
+
+            return render(
+                request,
+                "usuarios/recuperar_contrasena.html",
+                {
+                    "mensaje": mensaje,
+                    "correo": correo_guardado,
+                    "en_espera": en_espera,
+                },
+            )
+
+        correo_solicitado = request.POST.get("correo", "").strip()
         if settings.EMAIL_PROVIDER == "resend":
             email_configured = bool(
                 settings.RESEND_API_KEY and settings.DEFAULT_FROM_EMAIL
@@ -301,32 +389,49 @@ def recuperar_contrasena(request):
             return render(
                 request,
                 "usuarios/recuperar_contrasena.html",
-                {"mensaje": mensaje},
+                {
+                    "mensaje": mensaje,
+                    "correo": correo,
+                    "en_espera": en_espera,
+                },
             )
 
-        correo_solicitado = request.POST.get("correo", "").strip()
         mensaje = (
-            "Si existe una cuenta activa con ese correo, recibirás un enlace "
+            "Si existe una cuenta activa con ese correo, recibirás un código "
             "para restablecer la contraseña."
         )
         usuario = Usuario.objects.filter(correo__iexact=correo_solicitado, activo=True).first()
         if correo_solicitado and usuario:
-            token = _create_password_reset_token(usuario)
-            reset_url = request.build_absolute_uri(
-                reverse("restablecer_contrasena", kwargs={"token": token})
-            )
+            code = f"{secrets.randbelow(900000) + 100000}"
             try:
-                sent = _send_recovery_email(usuario.correo, reset_url)
+                sent = _send_recovery_email(usuario.correo, code)
             except (OSError, smtplib.SMTPException):
                 logger.exception("No se pudo enviar el correo de recuperación.")
                 sent = False
-            if not sent:
+            if sent:
+                request.session["recuperar_codigo_hash"] = make_password(code)
+                request.session["recuperar_email"] = usuario.correo
+                request.session["recuperar_expira"] = time.time() + RECOVERY_CODE_TTL
+                request.session["recuperar_intentos"] = 0
+                request.session.set_expiry(RECOVERY_CODE_TTL)
+                mensaje = "Revisa el correo de tu cuenta e ingresa el código de confirmación."
+                correo = usuario.correo
+                en_espera = True
+            else:
                 logger.error("No se pudo enviar el correo de recuperación.")
+                mensaje = (
+                    "No se pudo enviar el correo de recuperación. "
+                    "Inténtalo más tarde o contacta al administrador."
+                )
 
     return render(
         request,
         "usuarios/recuperar_contrasena.html",
-        {"mensaje": mensaje},
+        {
+            "mensaje": mensaje,
+            "correo": correo,
+            "en_espera": en_espera,
+        },
     )
 
 

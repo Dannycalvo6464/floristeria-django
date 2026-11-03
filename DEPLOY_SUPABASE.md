@@ -16,7 +16,7 @@ Actualiza el servicio web existente conectado al repositorio actual; no hace fal
 
 La configuración de seguridad activa cookies Secure/HttpOnly, redirección HTTPS, proxy HTTPS y HSTS cuando `DJANGO_DEBUG=false`. No pongas `https://` en `DJANGO_ALLOWED_HOSTS`; sí se necesita en `DJANGO_CSRF_TRUSTED_ORIGINS`.
 
-La recuperación envía un enlace firmado a las cuentas activas. El enlace vence en 10 minutos, queda invalidado después de usarse o cambiar la contraseña/correo y no se muestra en la página. Configura un proveedor de correo:
+La recuperación envía un código de seis dígitos a las cuentas activas. El código se guarda como hash en la sesión, vence en 10 minutos y se invalida tras cinco intentos fallidos. Configura un proveedor de correo:
 
 | Variable | Uso |
 | --- | --- |
