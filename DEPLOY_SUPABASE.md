@@ -34,7 +34,7 @@ En Render puedes usar `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` y un `DEFAULT_FR
 ## Comandos del servicio
 
 - **Build Command:** `pip install -r requirements.txt && python manage.py collectstatic --no-input`
-- **Start Command:** `gunicorn Floristeria.wsgi:application`
+- **Start Command (plan Free):** `python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application`
 
 WhiteNoise sirve los archivos recopilados, incluidos los estáticos del admin de Django. La interfaz de Flores Cali conserva sus plantillas y estilos actuales; la plantilla del catálogo carga fotografías desde Unsplash.
 
@@ -42,15 +42,15 @@ WhiteNoise sirve los archivos recopilados, incluidos los estáticos del admin de
 
 Las migraciones existentes son `usuarios.0001_initial` y `usuarios.0002_usuario_activo`, además de las migraciones estándar de Django. El checkout añade `usuarios.0003_add_delivery_order_requests`, que crea tablas para solicitudes de pedido y sus productos. El cambio es aditivo y no modifica las cuentas existentes.
 
-Antes de aplicar la migración en producción, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y crea un respaldo. Para un despliegue sin interrupciones, configura en Render **Pre-Deploy Command** `python manage.py migrate --noinput` si está disponible en el plan del servicio. No ejecutes migraciones en el build.
+Antes de aplicar la migración en producción, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y crea un respaldo. No ejecutes migraciones en el build.
 
-Si el plan no ofrece Pre-Deploy Command, despliega el código y ejecuta enseguida desde Render Shell, usando el entorno de la versión desplegada:
+En planes pagos, configura en Render **Pre-Deploy Command** `python manage.py migrate --noinput`. En el plan Free, donde Pre-Deploy Command no está disponible, configura este **Start Command** para aplicar las migraciones antes de iniciar Gunicorn:
 
-```sh
-python manage.py migrate --plan
-python manage.py migrate usuarios 0003_add_delivery_order_requests --noinput
-python manage.py showmigrations usuarios
+```text
+python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application
 ```
+
+Render registra el resultado de la migración en los logs de inicio. Una vez desplegada la versión, confirma que aparezca `Applying usuarios.0003_add_delivery_order_requests... OK`. La migración no cambia datos existentes; el Start Command puede ejecutar `migrate` en cada inicio, y Django no vuelve a aplicar migraciones ya completadas.
 
 La opción de checkout requiere una cuenta activa. Al enviarla, la dirección y el consentimiento quedan asociados a esa cuenta; se puede consultar el historial desde **Mis pedidos**. El flujo crea una solicitud pendiente, no procesa pagos ni garantiza inventario. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
 
