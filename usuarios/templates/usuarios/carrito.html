@@ -35,7 +35,7 @@
                                     <input id="cantidad-{{ producto.slug }}" name="cantidad" type="number" min="1" step="1" value="{{ producto.cantidad }}" data-saved-quantity="{{ producto.cantidad }}" required>
                                 </div>
                             </form>
-                            <p class="help-text" data-cart-quantity-status aria-live="polite"></p>
+                            <p class="help-text" data-cart-quantity-status aria-live="polite" hidden></p>
                             <form class="cart-remove-form" method="post" action="{% url 'quitar_del_carrito' producto.slug %}">
                                 {% csrf_token %}
                                 <button class="btn btn-danger btn-small" type="submit">Quitar</button>
