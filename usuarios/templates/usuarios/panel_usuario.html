@@ -1,14 +1,50 @@
 {% extends "usuarios/base.html" %}
 
 {% block title %}Mi espacio | Flores Cali{% endblock %}
+{% block container_class %}dashboard-container{% endblock %}
 
 {% block content %}
-    <span class="eyebrow">Flores Cali</span>
-    <h1 class="page-heading">Hola, {{ usuario.nombre }}</h1>
-    <p class="page-intro">Desde aquí puedes revisar tu perfil y descubrir el catálogo.</p>
-    <div class="dashboard-grid">
-        <a class="dashboard-card" href="{% url 'mi_perfil' %}">Mi perfil<span>Consulta los datos de tu cuenta.</span></a>
-        <a class="dashboard-card" href="{% url 'mis_pedidos' %}">Mis pedidos<span>Consulta el estado de tus compras cuando esté disponible.</span></a>
-        <a class="dashboard-card" href="{% url 'catalogo' %}">Catálogo<span>Explora los arreglos de demostración.</span></a>
-    </div>
+    <section class="dashboard-welcome">
+        <div>
+            <span class="eyebrow">Tu espacio en Flores Cali</span>
+            <h1 class="page-heading">Hola, {{ usuario.nombre }}</h1>
+            <p class="page-intro">Un lugar para gestionar tu cuenta y seguir descubriendo flores para cada ocasión.</p>
+        </div>
+        <div class="welcome-note">
+            <span class="welcome-icon" aria-hidden="true">✿</span>
+            <div>
+                <strong>Todo lo que necesitas, a tu alcance</strong>
+                <p>Consulta tu información, revisa tus pedidos o continúa explorando el catálogo.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-section" aria-labelledby="dashboard-links-title">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">Accesos rápidos</span>
+                <h2 id="dashboard-links-title">¿A dónde quieres ir?</h2>
+            </div>
+        </div>
+        <div class="dashboard-grid">
+            <a class="dashboard-card" href="{% url 'mi_perfil' %}">
+                <span class="dashboard-icon" aria-hidden="true">◎</span>
+                <span class="dashboard-card-title">Mi perfil</span>
+                <span class="dashboard-card-description">Consulta y actualiza los datos de tu cuenta.</span>
+                <span class="dashboard-card-action">Ver mi perfil <span aria-hidden="true">→</span></span>
+            </a>
+            <a class="dashboard-card" href="{% url 'mis_pedidos' %}">
+                <span class="dashboard-icon" aria-hidden="true">▤</span>
+                <span class="dashboard-card-title">Mis pedidos</span>
+                <span class="dashboard-card-description">Consulta el estado de tus compras cuando esté disponible.</span>
+                <span class="dashboard-card-action">Consultar pedidos <span aria-hidden="true">→</span></span>
+            </a>
+            <a class="dashboard-card" href="{% url 'catalogo' %}">
+                <span class="dashboard-icon" aria-hidden="true">✿</span>
+                <span class="dashboard-card-title">Catálogo</span>
+                <span class="dashboard-card-description">Encuentra flores y arreglos para cada ocasión.</span>
+                <span class="dashboard-card-action">Explorar flores <span aria-hidden="true">→</span></span>
+            </a>
+        </div>
+    </section>
 {% endblock %}

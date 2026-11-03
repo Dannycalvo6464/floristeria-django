@@ -54,6 +54,18 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(self.client.get(reverse('panel_admin')).status_code, 200)
         self.assertEqual(self.client.get(reverse('buscar_usuario')).status_code, 200)
 
+    def test_panel_usuario_presenta_accesos_sin_datos_ficticios(self):
+        self._login_como()
+
+        response = self.client.get(reverse('panel_usuario'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Todo lo que necesitas, a tu alcance')
+        self.assertContains(response, 'Mi perfil')
+        self.assertContains(response, 'Mis pedidos')
+        self.assertContains(response, 'Catálogo')
+        self.assertNotContains(response, 'Total de ventas')
+
     def test_formulario_de_registro_exige_csrf(self):
         client = Client(enforce_csrf_checks=True)
         response = client.post(
@@ -308,16 +320,62 @@ class UsuarioRoutesTest(TestCase):
 
         content = response.content.decode()
         self.assertIn('Rosa Roja', content)
-        self.assertIn('Disponibilidad', content)
+        self.assertIn('existencia por confirmar', content)
+        self.assertNotIn('Este catálogo conserva los productos de demostración existentes', content)
         self.assertIn('Recomendación educativa', content)
         self.assertIn('Aniversario', content)
+        self.assertNotContains(response, 'Carrito de demostración')
+
+    def test_catalogo_agrega_al_carrito_sin_redireccion_y_actualiza_contador(self):
+        agregar_url = reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'})
+
+        response = self.client.post(
+            agregar_url,
+            {'cantidad': '2'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_ACCEPT='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(response.json(), {
+            'ok': True,
+            'message': 'Rosa Roja se agregó al carrito.',
+            'carrito_cantidad': 2,
+        })
+        self.assertEqual(self.client.session['carrito'], {'rosa-roja': 2})
+        catalog_response = self.client.get(reverse('catalogo'))
+        self.assertContains(catalog_response, 'Carrito, 2 artículos')
+        self.assertContains(catalog_response, 'data-cart-form')
+        self.assertContains(catalog_response, 'usuarios/js/cart.js')
+
+        response = self.client.post(
+            agregar_url,
+            {'cantidad': '3'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.json()['carrito_cantidad'], 5)
+        self.assertEqual(self.client.session['carrito'], {'rosa-roja': 5})
+
+    def test_catalogo_ajax_informa_cantidad_invalida_sin_cambiar_sesion(self):
+        response = self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '0'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            HTTP_ACCEPT='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['ok'], False)
+        self.assertIn('cantidad entera mayor que cero', response.json()['message'])
+        self.assertNotIn('carrito', self.client.session)
 
     def test_inicio_y_login_tienen_rutas_publicas_distintas(self):
         self.assertEqual(self.client.get(reverse('inicio')).status_code, 200)
         self.assertEqual(self.client.get(reverse('login')).status_code, 200)
         self.assertContains(self.client.get(reverse('inicio')), 'Explorar catálogo')
 
-    def test_busqueda_exacta_y_filtro_de_categoria(self):
+    def test_busqueda_parcial_sin_distinguir_mayusculas_ni_tildes_y_filtro_de_categoria(self):
         response = self.client.get(reverse('catalogo'), {'q': 'Rosa Roja'})
         self.assertContains(response, 'Rosa Roja')
         self.assertEqual(
@@ -325,8 +383,22 @@ class UsuarioRoutesTest(TestCase):
             ['rosa-roja'],
         )
 
-        response = self.client.get(reverse('catalogo'), {'q': 'rosa'})
-        self.assertContains(response, 'No encontramos una flor con ese nombre exacto')
+        response = self.client.get(reverse('catalogo'), {'q': 'Ros'})
+        self.assertContains(response, 'Rosa Roja')
+        self.assertEqual(
+            [producto['slug'] for producto in response.context['productos']],
+            ['rosa-roja'],
+        )
+
+        response = self.client.get(reverse('catalogo'), {'q': 'orquidea'})
+        self.assertContains(response, 'Orquídea Blanca')
+
+        response = self.client.get(
+            reverse('catalogo'),
+            {'q': 'Ros', 'categoria': 'Lirios'},
+        )
+        self.assertContains(response, 'No encontramos flores que coincidan con esos filtros')
+        self.assertEqual(response.context['resultados_count'], 0)
 
         response = self.client.get(reverse('catalogo'), {'categoria': 'Tulipanes'})
         self.assertContains(response, 'Ramo de Tulipanes')
@@ -353,6 +425,20 @@ class UsuarioRoutesTest(TestCase):
         )
         self.assertContains(self.client.get(reverse('carrito')), 'Tu carrito está vacío')
 
+    def test_carrito_presenta_resumen_producto_y_controles(self):
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '2'},
+        )
+
+        response = self.client.get(reverse('carrito'))
+
+        self.assertContains(response, 'cart-layout')
+        self.assertContains(response, 'Rosas')
+        self.assertContains(response, 'Precio unitario')
+        self.assertContains(response, 'Subtotal')
+        self.assertContains(response, 'Total de referencia')
+        self.assertContains(response, 'Seguir comprando')
     def test_carrito_rechaza_cantidad_no_entera_o_no_positiva(self):
         response = self.client.post(
             reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),

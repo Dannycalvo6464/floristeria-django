@@ -1,6 +1,7 @@
 import logging
 import json
 import smtplib
+import unicodedata
 from functools import wraps
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -10,7 +11,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core import signing
 from django.core.mail import EmailMultiAlternatives
-from django.http import Http404, HttpResponse, HttpResponseForbidden
+from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
@@ -28,6 +29,7 @@ from .catalog import (
     formato_cop,
     producto_para_vista,
 )
+from .context_processors import get_cart_quantity
 from .models import Usuario
 
 
@@ -481,12 +483,13 @@ def ver_catalogo(request):
         consulta = consulta[:100]
         mensaje_busqueda = "La búsqueda se limitó a 100 caracteres."
     if consulta:
+        consulta_normalizada = _normalizar_busqueda(consulta)
         productos = [
             producto for producto in productos
-            if producto["nombre"].casefold() == consulta.casefold()
+            if consulta_normalizada in _normalizar_busqueda(producto["nombre"])
         ]
         if not productos:
-            mensaje_busqueda = "No encontramos una flor con ese nombre exacto."
+            mensaje_busqueda = "No encontramos flores que coincidan con esa búsqueda."
 
     if categoria:
         if categoria not in categorias:
@@ -498,7 +501,7 @@ def ver_catalogo(request):
                 if producto["categoria"] == categoria
             ]
             if not productos and not mensaje_busqueda:
-                mensaje_busqueda = "No hay resultados con esos criterios."
+                mensaje_busqueda = "No encontramos flores que coincidan con esos filtros."
 
     recomendaciones = []
     for recomendacion in RECOMENDACIONES:
@@ -513,6 +516,9 @@ def ver_catalogo(request):
         "usuarios/catalogo.html",
         {
             "productos": [producto_para_vista(p) for p in productos],
+            "todos_productos": [producto_para_vista(p) for p in PRODUCTOS],
+            "productos_visibles": [producto["slug"] for producto in productos],
+            "resultados_count": len(productos),
             "categorias": categorias,
             "categoria_seleccionada": categoria,
             "consulta": consulta,
@@ -520,6 +526,14 @@ def ver_catalogo(request):
             "recomendaciones": recomendaciones,
             "formato_cop": formato_cop,
         },
+    )
+
+
+def _normalizar_busqueda(texto):
+    return "".join(
+        caracter
+        for caracter in unicodedata.normalize("NFKD", texto).casefold()
+        if not unicodedata.combining(caracter)
     )
 
 
@@ -545,6 +559,11 @@ def agregar_al_carrito(request, slug):
     except (TypeError, ValueError):
         cantidad = 0
     if cantidad < 1:
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse(
+                {"ok": False, "message": "Ingresa una cantidad entera mayor que cero."},
+                status=400,
+            )
         messages.error(request, "Ingresa una cantidad entera mayor que cero.")
         return redirect("detalle_producto", slug=slug)
 
@@ -556,7 +575,16 @@ def agregar_al_carrito(request, slug):
         actual = 0
     carrito[slug] = actual + cantidad
     request.session["carrito"] = carrito
-    messages.success(request, f"{producto['nombre']} se agregó al carrito.")
+    mensaje = f"{producto['nombre']} se agregó al carrito."
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": mensaje,
+                "carrito_cantidad": get_cart_quantity(carrito),
+            }
+        )
+    messages.success(request, mensaje)
     return redirect("carrito")
 
 

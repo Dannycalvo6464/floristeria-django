@@ -5,17 +5,12 @@
 {% block content %}
     <span class="eyebrow">Flores Cali</span>
     <h1 class="page-heading">Un detalle para cada ocasión</h1>
-    <p class="page-intro">Busca por el nombre exacto de una flor o explora el catálogo por tipo.</p>
+    <p class="page-intro">Busca una flor por su nombre o explora el catálogo por tipo.</p>
 
-    <div class="notice">
-        Este catálogo conserva los productos de demostración existentes. Los precios son de referencia;
-        Disponibilidad, inventario y venta real aún no están conectados.
-    </div>
-
-    <form class="filter-bar" method="get" action="{% url 'catalogo' %}">
+    <form class="filter-bar" method="get" action="{% url 'catalogo' %}" data-live-catalog-search>
         <div class="form-field">
-            <label for="q">Nombre exacto de la flor</label>
-            <input id="q" name="q" type="search" value="{{ consulta }}" maxlength="100" placeholder="Ej. Rosa Roja">
+            <label for="q">Nombre de la flor</label>
+            <input id="q" name="q" type="search" value="{{ consulta }}" maxlength="100" placeholder="Ej. Rosa Roja" autocomplete="off">
         </div>
         <div class="form-field">
             <label for="categoria">Tipo de flor</label>
@@ -26,14 +21,16 @@
                 {% endfor %}
             </select>
         </div>
-        <button class="btn" type="submit">Buscar y filtrar</button>
+        <button class="btn" type="submit">Buscar</button>
     </form>
 
-    {% if mensaje_busqueda %}<p class="message info" role="status">{{ mensaje_busqueda }}</p>{% endif %}
+    <p class="catalog-search-status" data-search-status role="status" aria-live="polite">
+        {% if mensaje_busqueda %}{{ mensaje_busqueda }}{% else %}{{ resultados_count }} resultado{{ resultados_count|pluralize }}{% endif %}
+    </p>
 
-    <div class="product-grid">
-        {% for producto in productos %}
-            <article class="product-card">
+    <div class="product-grid" data-product-grid>
+        {% for producto in todos_productos %}
+            <article class="product-card" data-product-card data-name="{{ producto.nombre }}" data-category="{{ producto.categoria }}"{% if producto.slug not in productos_visibles %} hidden{% endif %}>
                 <a href="{% url 'detalle_producto' producto.slug %}">
                     <img src="{{ producto.imagen }}" alt="{{ producto.alt }}" loading="lazy">
                 </a>
@@ -45,7 +42,7 @@
                     <span class="price-note">Precio de referencia · existencia por confirmar</span>
                     <div class="product-actions">
                         <a class="btn btn-secondary btn-small" href="{% url 'detalle_producto' producto.slug %}">Ver detalles</a>
-                        <form method="post" action="{% url 'agregar_al_carrito' producto.slug %}">
+                        <form method="post" action="{% url 'agregar_al_carrito' producto.slug %}" data-cart-form>
                             {% csrf_token %}
                             <input type="hidden" name="cantidad" value="1">
                             <button class="btn btn-small" type="submit">Agregar al carrito</button>
@@ -53,13 +50,11 @@
                     </div>
                 </div>
             </article>
-        {% empty %}
-            <div class="panel" style="padding: 24px">
-                <h2>No encontramos resultados</h2>
-                <p>Revisa el nombre exacto o el tipo seleccionado.</p>
-                <a class="btn btn-secondary" href="{% url 'catalogo' %}">Ver todo el catálogo</a>
-            </div>
         {% endfor %}
+        <div class="panel catalog-no-results" data-empty-results role="status"{% if resultados_count %} hidden{% endif %}>
+            <h2>No encontramos resultados</h2>
+            <p>Prueba con otro nombre o cambia el tipo de flor seleccionado.</p>
+        </div>
     </div>
 
     <section class="section" aria-labelledby="recommendations-title">
@@ -81,4 +76,10 @@
             {% endfor %}
         </div>
     </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    {% load static %}
+    <script src="{% static 'usuarios/js/cart.js' %}" defer></script>
+    <script src="{% static 'usuarios/js/catalog-search.js' %}" defer></script>
 {% endblock %}
