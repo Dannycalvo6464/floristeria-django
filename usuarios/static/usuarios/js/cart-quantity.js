@@ -59,8 +59,8 @@
             return Promise.resolve(true);
         }
 
-        status.textContent = "Guardando cantidad…";
-        status.hidden = false;
+        status.textContent = "";
+        status.hidden = true;
         const body = new FormData(form);
 
         const request = fetch(form.action, {
