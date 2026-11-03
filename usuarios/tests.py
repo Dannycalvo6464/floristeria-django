@@ -66,6 +66,30 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'Catálogo')
         self.assertNotContains(response, 'Total de ventas')
 
+    def test_perfil_presenta_datos_sin_aviso_de_contacto_a_administracion(self):
+        usuario = self._login_como()
+
+        response = self.client.get(reverse('mi_perfil'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, usuario.nombre)
+        self.assertContains(response, usuario.correo)
+        self.assertContains(response, 'profile-card')
+        self.assertContains(response, 'Volver a mi espacio')
+        self.assertNotContains(response, 'contacta con la administración')
+
+    def test_pedidos_y_panel_admin_no_muestran_avisos_de_funcionalidad_pendiente(self):
+        self._login_como(tipo='Administrador')
+
+        orders_response = self.client.get(reverse('mis_pedidos'))
+        admin_response = self.client.get(reverse('panel_admin'))
+
+        self.assertEqual(orders_response.status_code, 200)
+        self.assertContains(orders_response, 'Aún no hay pedidos para mostrar')
+        self.assertNotContains(orders_response, 'pedidos persistentes')
+        self.assertEqual(admin_response.status_code, 200)
+        self.assertNotContains(admin_response, 'no hay pedidos ni inventario persistente')
+
     def test_formulario_de_registro_exige_csrf(self):
         client = Client(enforce_csrf_checks=True)
         response = client.post(
@@ -373,7 +397,19 @@ class UsuarioRoutesTest(TestCase):
     def test_inicio_y_login_tienen_rutas_publicas_distintas(self):
         self.assertEqual(self.client.get(reverse('inicio')).status_code, 200)
         self.assertEqual(self.client.get(reverse('login')).status_code, 200)
-        self.assertContains(self.client.get(reverse('inicio')), 'Explorar catálogo')
+        response = self.client.get(reverse('inicio'))
+        self.assertContains(response, 'Explorar catálogo')
+        self.assertNotContains(response, 'datos de demostración existentes en el catálogo')
+        self.assertNotContains(response, 'Catálogo demostrativo.')
+
+    def test_detalle_producto_no_muestra_aviso_de_inventario_no_disponible(self):
+        response = self.client.get(
+            reverse('detalle_producto', kwargs={'slug': 'rosa-roja'})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'no tiene inventario disponible')
+        self.assertContains(response, 'Precio de referencia')
 
     def test_busqueda_parcial_sin_distinguir_mayusculas_ni_tildes_y_filtro_de_categoria(self):
         response = self.client.get(reverse('catalogo'), {'q': 'Rosa Roja'})

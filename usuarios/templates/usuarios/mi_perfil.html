@@ -1,17 +1,39 @@
 {% extends "usuarios/base.html" %}
 
 {% block title %}Mi perfil | Flores Cali{% endblock %}
+{% block container_class %}profile-container{% endblock %}
 
 {% block content %}
-    <span class="eyebrow">Mi espacio</span>
-    <h1 class="page-heading">Mi perfil</h1>
-    <section class="panel" style="padding: 24px">
-        <dl>
-            <dt>Nombre</dt>
-            <dd>{{ usuario.nombre }}</dd>
-            <dt>Correo electrónico</dt>
-            <dd>{{ usuario.correo }}</dd>
+    <header class="profile-heading">
+        <span class="eyebrow">Mi espacio</span>
+        <h1 class="page-heading">Mi perfil</h1>
+        <p class="page-intro">La información de tu cuenta, en un solo lugar.</p>
+    </header>
+
+    <section class="profile-card" aria-labelledby="profile-name">
+        <div class="profile-identity">
+            <span class="profile-avatar" aria-hidden="true">{{ usuario.nombre|first|upper }}</span>
+            <div>
+                <span class="eyebrow">Perfil personal</span>
+                <h2 id="profile-name">{{ usuario.nombre }}</h2>
+                <p>Información asociada a tu cuenta de Flores Cali.</p>
+            </div>
+        </div>
+
+        <dl class="profile-details">
+            <div class="profile-detail">
+                <dt>Nombre</dt>
+                <dd>{{ usuario.nombre }}</dd>
+            </div>
+            <div class="profile-detail">
+                <dt>Correo electrónico</dt>
+                <dd>{{ usuario.correo }}</dd>
+            </div>
         </dl>
-        <p class="help-text">Para actualizar tus datos, contacta con la administración.</p>
+
+        <nav class="profile-actions" aria-label="Accesos del perfil">
+            <a class="btn btn-secondary" href="{% url 'panel_usuario' %}">Volver a mi espacio</a>
+            <a class="text-link" href="{% url 'catalogo' %}">Explorar el catálogo <span aria-hidden="true">→</span></a>
+        </nav>
     </section>
 {% endblock %}
