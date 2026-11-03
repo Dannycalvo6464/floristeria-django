@@ -67,7 +67,7 @@ class UsuarioRoutesTest(TestCase):
         EMAIL_HOST='smtp.test',
         DEFAULT_FROM_EMAIL='no-reply@flores.test',
     )
-    def test_recuperacion_envia_codigo_sin_exponerlo_y_guarda_hash(self):
+    def test_recuperacion_envia_enlace_y_restablece_contrasena(self):
         Usuario.objects.create(
             nombre='Ana',
             correo='ana@flores.com',
@@ -84,16 +84,37 @@ class UsuarioRoutesTest(TestCase):
             {'correo': 'ana@flores.com'}
         )
         self.assertEqual(len(mail.outbox), 1)
-        code = re.search(r'\b(\d{6})\b', mail.outbox[0].body).group(1)
-        self.assertNotIn(code, response.content.decode())
+        token = re.search(r'/restablecer_contrasena/([^/\s]+)/', mail.outbox[0].body).group(1)
+        self.assertNotIn(token, response.content.decode())
 
-        response = self.client.post(
+        unknown_response = self.client.post(
             reverse('recuperar_contrasena'),
-            {'codigo': code, 'nueva_contrasena': 'FloresSeguras!2026'}
+            {'correo': 'inexistente@flores.com'},
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertContains(unknown_response, 'recibirás un enlace')
+        self.assertEqual(len(mail.outbox), 1)
+
+        reset_url = reverse('restablecer_contrasena', kwargs={'token': token})
+        self.assertContains(self.client.get(reset_url), 'name="nueva_contrasena"')
+        mismatch_response = self.client.post(
+            reset_url,
+            {
+                'nueva_contrasena': 'FloresSeguras!2026',
+                'confirmar_contrasena': 'OtraClaveSegura!2026',
+            },
+        )
+        self.assertContains(mismatch_response, 'Las contraseñas no coinciden')
+        response = self.client.post(
+            reset_url,
+            {
+                'nueva_contrasena': 'FloresSeguras!2026',
+                'confirmar_contrasena': 'FloresSeguras!2026',
+            },
+        )
+        self.assertContains(response, 'Tu contraseña se actualizó')
         usuario = Usuario.objects.get(correo='ana@flores.com')
         self.assertTrue(check_password('FloresSeguras!2026', usuario.contrasena))
+        self.assertNotContains(self.client.get(reset_url), 'name="nueva_contrasena"')
 
     @override_settings(
         EMAIL_PROVIDER='smtp',
@@ -107,7 +128,7 @@ class UsuarioRoutesTest(TestCase):
         )
         self.assertContains(response, 'EMAIL_HOST')
         self.assertContains(response, 'EMAIL_HOST_PASSWORD')
-        self.assertNotContains(response, 'código de recuperación es')
+        self.assertContains(response, 'La recuperación por correo aún no está configurada')
 
     @override_settings(
         EMAIL_PROVIDER='resend',
@@ -116,7 +137,7 @@ class UsuarioRoutesTest(TestCase):
         EMAIL_TIMEOUT=10,
     )
     @patch('usuarios.views.urlopen')
-    def test_recuperacion_envia_codigo_mediante_resend_api(self, urlopen_mock):
+    def test_recuperacion_envia_enlace_mediante_resend_api(self, urlopen_mock):
         usuario = Usuario.objects.create(
             nombre='Ana',
             correo='ana@flores.com',
@@ -132,18 +153,18 @@ class UsuarioRoutesTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Revisa el correo de tu cuenta')
-        self.assertIn('recuperar_codigo_hash', self.client.session)
+        self.assertContains(response, 'recibirás un enlace')
         api_request = urlopen_mock.call_args.args[0]
         self.assertEqual(api_request.full_url, 'https://api.resend.com/emails')
         self.assertEqual(api_request.get_header('Authorization'), 'Bearer test-resend-key')
         payload = json.loads(api_request.data)
         self.assertEqual(payload['from'], 'Flores Cali <onboarding@resend.dev>')
         self.assertEqual(payload['to'], [usuario.correo])
-        self.assertEqual(payload['subject'], 'Código para recuperar tu cuenta de Flores Cali')
-        self.assertRegex(payload['text'], r'Tu código de recuperación es \d{6}\. Vence en 10 minutos\.')
-        code = re.search(r'\b(\d{6})\b', payload['text']).group(1)
-        self.assertNotIn(code, response.content.decode())
+        self.assertEqual(payload['subject'], 'Restablece tu contraseña de Flores Cali')
+        token = re.search(r'/restablecer_contrasena/([^/\s]+)/', payload['text']).group(1)
+        self.assertIn('html', payload)
+        self.assertIn(token, payload['html'])
+        self.assertNotIn(token, response.content.decode())
         urlopen_mock.assert_called_once()
 
     @override_settings(
@@ -156,7 +177,7 @@ class UsuarioRoutesTest(TestCase):
         'usuarios.views.urlopen',
         side_effect=HTTPError('https://api.resend.com/emails', 403, 'rejected', {}, None),
     )
-    def test_error_resend_no_devuelve_500_ni_guarda_codigo(self, urlopen_mock):
+    def test_error_resend_no_devuelve_500_ni_expone_token(self, urlopen_mock):
         Usuario.objects.create(
             nombre='Ana',
             correo='ana@flores.com',
@@ -172,16 +193,16 @@ class UsuarioRoutesTest(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'No se pudo enviar el correo de recuperación')
-        self.assertNotIn('recuperar_codigo_hash', self.client.session)
+        self.assertContains(response, 'recibirás un enlace')
+        self.assertNotIn('token', self.client.session)
         urlopen_mock.assert_called_once()
 
     @override_settings(
         EMAIL_HOST='smtp.test',
         DEFAULT_FROM_EMAIL='no-reply@flores.test',
     )
-    @patch('usuarios.views.send_mail', side_effect=TimeoutError('SMTP connection timed out'))
-    def test_recuperacion_smtp_timeout_no_produce_error_500(self, send_mail_mock):
+    @patch('usuarios.views.EmailMultiAlternatives.send', side_effect=TimeoutError('SMTP connection timed out'))
+    def test_recuperacion_smtp_timeout_no_produce_error_500(self, send_mock):
         Usuario.objects.create(
             nombre='Ana',
             correo='ana@flores.com',
@@ -197,26 +218,39 @@ class UsuarioRoutesTest(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'No se pudo enviar el correo de recuperación')
+        self.assertContains(response, 'recibirás un enlace')
         self.assertNotContains(response, 'SMTP connection timed out')
-        self.assertNotIn('recuperar_codigo_hash', self.client.session)
-        send_mail_mock.assert_called_once()
+        self.assertNotIn('token', self.client.session)
+        send_mock.assert_called_once()
 
-    def test_recuperacion_expirada_vuelve_a_mostrar_solicitud_de_correo(self):
-        session = self.client.session
-        session['recuperar_codigo_hash'] = 'hash-expirado'
-        session['recuperar_email'] = 'ana@flores.com'
-        session['recuperar_expira'] = 0
-        session['recuperar_intentos'] = 0
-        session.save()
-
-        response = self.client.post(
-            reverse('recuperar_contrasena'),
-            {'codigo': '123456', 'nueva_contrasena': 'FloresSeguras!2026'},
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_HOST='smtp.test',
+        DEFAULT_FROM_EMAIL='no-reply@flores.test',
+    )
+    @patch('usuarios.views.PASSWORD_RESET_MAX_AGE', -1)
+    def test_enlace_expirado_pide_una_nueva_solicitud(self):
+        Usuario.objects.create(
+            nombre='Ana',
+            correo='ana@flores.com',
+            contrasena='vieja123',
+            tipo='Usuario',
+            activo=True,
         )
-        self.assertContains(response, 'name="correo"')
-        self.assertNotContains(response, 'name="codigo"')
-        self.assertNotIn('recuperar_codigo_hash', self.client.session)
+        self.client.post(
+            reverse('recuperar_contrasena'),
+            {'correo': 'ana@flores.com'},
+        )
+        token = re.search(
+            r'/restablecer_contrasena/([^/\s]+)/',
+            mail.outbox[0].body,
+        ).group(1)
+
+        response = self.client.get(
+            reverse('restablecer_contrasena', kwargs={'token': token})
+        )
+        self.assertContains(response, 'El enlace venció o ya fue utilizado')
+        self.assertNotContains(response, 'name="nueva_contrasena"')
 
     def test_registro_guarda_hash_y_login_autentica(self):
         response = self.client.post(

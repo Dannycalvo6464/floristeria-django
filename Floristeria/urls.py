@@ -20,6 +20,7 @@ from usuarios.views import (
     mis_pedidos,
     mi_perfil,
     recuperar_contrasena,
+    restablecer_contrasena,
     inicio,
 )
 
@@ -38,6 +39,7 @@ urlpatterns = [
     path('mis_pedidos/', mis_pedidos, name='mis_pedidos'),
     path('mi_perfil/', mi_perfil, name='mi_perfil'),
     path('recuperar_contrasena/', recuperar_contrasena, name='recuperar_contrasena'),
+    path('restablecer_contrasena/<str:token>/', restablecer_contrasena, name='restablecer_contrasena'),
     path('login/', login_usuario, name='login'),
     path('', inicio, name='inicio'),
     path('crear_usuario/', crear_usuario, name='crear_usuario'),

@@ -1,8 +1,6 @@
 import logging
 import json
-import secrets
 import smtplib
-import time
 from functools import wraps
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -10,12 +8,15 @@ from urllib.request import Request, urlopen
 from django.contrib.auth.hashers import check_password, identify_hasher, make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.core.mail import send_mail
+from django.core import signing
+from django.core.mail import EmailMultiAlternatives
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render, redirect
+from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
-from django.utils.crypto import constant_time_compare
+from django.utils.crypto import constant_time_compare, salted_hmac
+from django.utils.html import format_html
 from django.db.models import Q
 from django.conf import settings
 from django.contrib import messages
@@ -31,11 +32,75 @@ from .models import Usuario
 
 
 logger = logging.getLogger(__name__)
+PASSWORD_RESET_SALT = "usuarios.password-reset"
+PASSWORD_RESET_MAX_AGE = 10 * 60
 
 
-def _send_recovery_email(recipient, code):
-    subject = "Código para recuperar tu cuenta de Flores Cali"
-    body = f"Tu código de recuperación es {code}. Vence en 10 minutos."
+def _create_password_reset_token(usuario):
+    return signing.dumps(
+        {
+            "usuario_id": usuario.pk,
+            "correo": usuario.correo,
+            "password_state": salted_hmac(PASSWORD_RESET_SALT, usuario.contrasena).hexdigest(),
+        },
+        salt=PASSWORD_RESET_SALT,
+        compress=True,
+    )
+
+
+def _get_password_reset_user(token):
+    try:
+        payload = signing.loads(
+            token,
+            salt=PASSWORD_RESET_SALT,
+            max_age=PASSWORD_RESET_MAX_AGE,
+        )
+    except (signing.BadSignature, TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    usuario_id = payload.get("usuario_id")
+    correo = payload.get("correo")
+    password_state = payload.get("password_state")
+    if (
+        type(usuario_id) is not int
+        or not isinstance(correo, str)
+        or not isinstance(password_state, str)
+    ):
+        return None
+
+    usuario = Usuario.objects.filter(
+        pk=usuario_id,
+        correo=correo,
+        activo=True,
+    ).first()
+    if not usuario or not constant_time_compare(
+        password_state,
+        salted_hmac(PASSWORD_RESET_SALT, usuario.contrasena).hexdigest(),
+    ):
+        return None
+    return usuario
+
+
+def _recovery_email_content(reset_url):
+    subject = "Restablece tu contraseña de Flores Cali"
+    body = (
+        "Recibimos una solicitud para restablecer la contraseña de tu cuenta.\n\n"
+        f"Abre este enlace para elegir una nueva contraseña (vence en 10 minutos):\n{reset_url}\n\n"
+        "Si no solicitaste el cambio, ignora este correo."
+    )
+    html_body = format_html(
+        "<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>"
+        "<p><a href=\"{}\">Crear una nueva contraseña</a></p>"
+        "<p>Este enlace vence en 10 minutos. Si no solicitaste el cambio, ignora este correo.</p>",
+        reset_url,
+    )
+    return subject, body, str(html_body)
+
+
+def _send_recovery_email(recipient, reset_url):
+    subject, body, html_body = _recovery_email_content(reset_url)
 
     if settings.EMAIL_PROVIDER == "resend":
         if not settings.RESEND_API_KEY:
@@ -47,6 +112,7 @@ def _send_recovery_email(recipient, code):
             "to": [recipient],
             "subject": subject,
             "text": body,
+            "html": html_body,
         }).encode("utf-8")
         request = Request(
             "https://api.resend.com/emails",
@@ -68,13 +134,9 @@ def _send_recovery_email(recipient, code):
             logger.exception("No se pudo conectar con Resend para enviar recuperación.")
         return False
 
-    return bool(send_mail(
-        subject,
-        body,
-        settings.DEFAULT_FROM_EMAIL,
-        [recipient],
-        fail_silently=False,
-    ))
+    email = EmailMultiAlternatives(subject, body, settings.DEFAULT_FROM_EMAIL, [recipient])
+    email.attach_alternative(html_body, "text/html")
+    return bool(email.send(fail_silently=False))
 
 
 def _verify_and_upgrade_password(usuario, raw_password):
@@ -201,70 +263,10 @@ def crear_usuario(request):
     )
 
 
+@never_cache
 def recuperar_contrasena(request):
     mensaje = ""
-    correo = request.session.get("recuperar_email")
-    en_espera = bool(request.session.get("recuperar_codigo_hash") and correo)
-    codigo_sesion_key = "recuperar_codigo_hash"
-
     if request.method == "POST":
-        if "codigo" in request.POST:
-            codigo_ingresado = request.POST.get("codigo", "").strip()
-            nueva_contrasena = request.POST.get("nueva_contrasena", "")
-            codigo_guardado = request.session.get(codigo_sesion_key)
-            correo_guardado = request.session.get("recuperar_email")
-            vencimiento = request.session.get("recuperar_expira", 0)
-            intentos = request.session.get("recuperar_intentos", 0)
-
-            if not codigo_guardado or not correo_guardado or time.time() > vencimiento:
-                request.session.pop(codigo_sesion_key, None)
-                request.session.pop("recuperar_email", None)
-                request.session.pop("recuperar_expira", None)
-                request.session.pop("recuperar_intentos", None)
-                mensaje = "La solicitud de recuperación ha expirado. Solicita un nuevo código."
-            elif intentos >= 5 or not check_password(codigo_ingresado, codigo_guardado):
-                intentos += 1
-                request.session["recuperar_intentos"] = intentos
-                if intentos >= 5:
-                    request.session.pop(codigo_sesion_key, None)
-                    request.session.pop("recuperar_email", None)
-                    request.session.pop("recuperar_expira", None)
-                mensaje = "El código de confirmación no es correcto."
-            elif not nueva_contrasena:
-                mensaje = "Debes ingresar una nueva contraseña."
-            else:
-                mensaje = _password_error(nueva_contrasena)
-                usuario = Usuario.objects.filter(correo=correo_guardado, activo=True).first()
-                if usuario and not mensaje:
-                    usuario.contrasena = make_password(nueva_contrasena)
-                    usuario.save(update_fields=["contrasena"])
-                    request.session.pop(codigo_sesion_key, None)
-                    request.session.pop("recuperar_email", None)
-                    request.session.pop("recuperar_expira", None)
-                    request.session.pop("recuperar_intentos", None)
-                    mensaje = "Tu contraseña se ha actualizado correctamente."
-                    return render(
-                        request,
-                        "usuarios/recuperar_contrasena.html",
-                        {"mensaje": mensaje, "exito": True}
-                    )
-                elif not usuario:
-                    mensaje = "No se pudo completar la recuperación. Solicita un nuevo código."
-
-            return render(
-                request,
-                "usuarios/recuperar_contrasena.html",
-                {
-                    "mensaje": mensaje,
-                    "correo": correo_guardado,
-                    "en_espera": bool(
-                        request.session.get(codigo_sesion_key)
-                        and request.session.get("recuperar_email")
-                    ),
-                }
-            )
-
-        correo_solicitado = request.POST.get("correo", "").strip()
         if settings.EMAIL_PROVIDER == "resend":
             email_configured = bool(
                 settings.RESEND_API_KEY and settings.DEFAULT_FROM_EMAIL
@@ -284,40 +286,66 @@ def recuperar_contrasena(request):
             return render(
                 request,
                 "usuarios/recuperar_contrasena.html",
-                {"mensaje": mensaje, "correo": correo, "en_espera": en_espera},
+                {"mensaje": mensaje},
             )
 
-        mensaje = "Si existe una cuenta activa, recibirás instrucciones."
+        correo_solicitado = request.POST.get("correo", "").strip()
+        mensaje = (
+            "Si existe una cuenta activa con ese correo, recibirás un enlace "
+            "para restablecer la contraseña."
+        )
         usuario = Usuario.objects.filter(correo__iexact=correo_solicitado, activo=True).first()
         if correo_solicitado and usuario:
-            codigo = f"{secrets.randbelow(900000) + 100000}"
+            token = _create_password_reset_token(usuario)
+            reset_url = request.build_absolute_uri(
+                reverse("restablecer_contrasena", kwargs={"token": token})
+            )
             try:
-                sent = _send_recovery_email(usuario.correo, codigo)
+                sent = _send_recovery_email(usuario.correo, reset_url)
             except (OSError, smtplib.SMTPException):
                 logger.exception("No se pudo enviar el correo de recuperación.")
-                sent = 0
-            if sent:
-                request.session[codigo_sesion_key] = make_password(codigo)
-                request.session["recuperar_email"] = usuario.correo
-                request.session["recuperar_expira"] = time.time() + 600
-                request.session["recuperar_intentos"] = 0
-                request.session.set_expiry(600)
-                correo = usuario.correo
-                en_espera = True
-            else:
-                mensaje = (
-                    "No se pudo enviar el correo de recuperación. "
-                    "Inténtalo más tarde o contacta al administrador."
-                )
+                sent = False
+            if not sent:
+                logger.error("No se pudo enviar el correo de recuperación.")
 
     return render(
         request,
         "usuarios/recuperar_contrasena.html",
-        {
-            "mensaje": mensaje,
-            "correo": correo,
-            "en_espera": en_espera,
-        }
+        {"mensaje": mensaje},
+    )
+
+
+@never_cache
+def restablecer_contrasena(request, token):
+    usuario = _get_password_reset_user(token)
+    if not usuario:
+        return render(
+            request,
+            "usuarios/restablecer_contrasena.html",
+            {"mensaje": "El enlace venció o ya fue utilizado. Solicita uno nuevo."},
+        )
+
+    mensaje = ""
+    if request.method == "POST":
+        nueva_contrasena = request.POST.get("nueva_contrasena", "")
+        confirmar_contrasena = request.POST.get("confirmar_contrasena", "")
+        if nueva_contrasena != confirmar_contrasena:
+            mensaje = "Las contraseñas no coinciden."
+        else:
+            mensaje = _password_error(nueva_contrasena)
+            if not mensaje:
+                usuario.contrasena = make_password(nueva_contrasena)
+                usuario.save(update_fields=["contrasena"])
+                return render(
+                    request,
+                    "usuarios/restablecer_contrasena.html",
+                    {"exito": True},
+                )
+
+    return render(
+        request,
+        "usuarios/restablecer_contrasena.html",
+        {"token": token, "mensaje": mensaje},
     )
 
 
