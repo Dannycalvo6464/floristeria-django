@@ -633,8 +633,36 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(self.client.get(reverse('carrito')), '$24.000')
 
         actualizar_url = reverse('actualizar_carrito', kwargs={'slug': 'rosa-roja'})
-        self.client.post(actualizar_url, {'cantidad': '3'})
+        response = self.client.post(
+            actualizar_url,
+            {'cantidad': '0'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.client.session['carrito']['rosa-roja'], 2)
+
+        response = self.client.post(
+            actualizar_url,
+            {'cantidad': '3'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                'ok': True,
+                'cantidad': 3,
+                'subtotal': '$36.000',
+                'total': '$36.000',
+            },
+        )
+        self.assertEqual(self.client.session['carrito']['rosa-roja'], 3)
         self.assertContains(self.client.get(reverse('carrito')), '$36.000')
+        carrito_response = self.client.get(reverse('carrito'))
+        self.assertContains(carrito_response, 'data-cart-quantity-form')
+        self.assertContains(carrito_response, 'data-cart-total')
+        self.assertContains(carrito_response, 'cart-quantity.js')
+        self.assertNotContains(carrito_response, '>Actualizar</button>')
         self.client.post(
             reverse('quitar_del_carrito', kwargs={'slug': 'rosa-roja'})
         )
@@ -654,6 +682,35 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'Subtotal')
         self.assertContains(response, 'Total de referencia')
         self.assertContains(response, 'Seguir comprando')
+
+    def test_checkout_usa_la_cantidad_guardada_automaticamente_en_el_carrito(self):
+        usuario = self._login_como()
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '2'},
+        )
+        response = self.client.post(
+            reverse('actualizar_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '10'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['total'], '$120.000')
+
+        response = self.client.post(
+            reverse('finalizar_pedido'),
+            self._datos_entrega(),
+        )
+
+        solicitud = SolicitudPedido.objects.get(usuario=usuario)
+        detalle = solicitud.productos.get(producto_slug='rosa-roja')
+        self.assertEqual(detalle.cantidad, 10)
+        self.assertEqual(solicitud.total_referencia, 120000)
+        self.assertRedirects(
+            response,
+            reverse('confirmacion_pedido', kwargs={'solicitud_id': solicitud.pk}),
+        )
+
     def test_carrito_rechaza_cantidad_no_entera_o_no_positiva(self):
         response = self.client.post(
             reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),

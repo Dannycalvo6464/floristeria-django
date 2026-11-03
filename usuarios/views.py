@@ -14,7 +14,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core import signing
 from django.core.mail import EmailMultiAlternatives
-from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
@@ -870,14 +870,37 @@ def actualizar_carrito(request, slug):
     except (TypeError, ValueError):
         cantidad = 0
     if cantidad < 1:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse(
+                {"ok": False, "message": "La cantidad debe ser un entero mayor que cero."},
+                status=400,
+            )
         messages.error(request, "La cantidad debe ser un entero mayor que cero.")
         return redirect("carrito")
     carrito = request.session.get("carrito", {})
     if not isinstance(carrito, dict) or slug not in carrito:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse(
+                {"ok": False, "message": "Ese producto ya no está en el carrito."},
+                status=400,
+            )
         messages.error(request, "Ese producto ya no está en el carrito.")
         return redirect("carrito")
     carrito[slug] = cantidad
     request.session["carrito"] = carrito
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        productos_carrito, _, total = _resumen_carrito(carrito)
+        producto_actualizado = next(
+            producto for producto in productos_carrito if producto["slug"] == slug
+        )
+        return JsonResponse(
+            {
+                "ok": True,
+                "cantidad": cantidad,
+                "subtotal": producto_actualizado["subtotal_formateado"],
+                "total": formato_cop(total),
+            }
+        )
     messages.success(request, "Cantidad actualizada.")
     return redirect("carrito")
 
