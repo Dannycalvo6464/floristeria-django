@@ -40,6 +40,7 @@
 
         if (!input.checkValidity() || !Number.isInteger(quantity) || quantity < 1) {
             status.textContent = "Ingresa una cantidad entera mayor que cero.";
+            status.hidden = false;
             return Promise.resolve(false);
         }
 
@@ -54,10 +55,12 @@
 
         if (String(quantity) === input.dataset.savedQuantity) {
             status.textContent = "";
+            status.hidden = true;
             return Promise.resolve(true);
         }
 
         status.textContent = "Guardando cantidad…";
+        status.hidden = false;
         const body = new FormData(form);
 
         const request = fetch(form.action, {
@@ -84,7 +87,8 @@
                 subtotal.textContent = result.subtotal;
                 totalElement.textContent = result.total;
                 updateTotals();
-                status.textContent = "Cantidad guardada.";
+                status.textContent = "";
+                status.hidden = true;
                 return true;
             })
             .catch((error) => {
@@ -95,6 +99,7 @@
                 status.textContent = error instanceof Error
                     ? error.message
                     : "No se pudo guardar la cantidad.";
+                status.hidden = false;
                 return false;
             })
             .finally(() => {
