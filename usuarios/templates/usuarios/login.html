@@ -11,6 +11,7 @@
         {% if mensaje %}<p class="message error" role="alert">{{ mensaje }}</p>{% endif %}
         <form class="form-grid" method="post">
             {% csrf_token %}
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
             <div class="form-field">
                 <label for="correo">Correo o nombre</label>
                 <input type="text" id="correo" name="correo" autocomplete="username" required>

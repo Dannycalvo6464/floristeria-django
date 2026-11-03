@@ -45,8 +45,9 @@
                     <span>Total de referencia</span>
                     <strong>{{ total }}</strong>
                 </div>
-                <p>El total se calcula con los precios de referencia del catálogo.</p>
-                <a class="btn btn-secondary" href="{% url 'catalogo' %}">Seguir comprando</a>
+                <p>Importe de referencia sujeto a confirmación de disponibilidad. No se realizará un cobro al enviar la solicitud.</p>
+                <a class="btn" href="{% url 'finalizar_pedido' %}">Continuar con la dirección</a>
+                <a class="text-link" href="{% url 'catalogo' %}">Seguir comprando</a>
             </aside>
         </div>
     {% else %}

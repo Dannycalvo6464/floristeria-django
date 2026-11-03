@@ -1,0 +1,42 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Solicitud recibida | Flores Cali{% endblock %}
+{% block container_class %}checkout-container{% endblock %}
+
+{% block content %}
+    <section class="order-confirmation">
+        <span class="order-confirmation-icon" aria-hidden="true">✓</span>
+        <span class="eyebrow">Solicitud recibida</span>
+        <h1>Gracias, {{ request.current_usuario.nombre }}</h1>
+        <p>Registramos tu solicitud #{{ solicitud.id }}. Está pendiente de revisión; todavía no se ha realizado ningún cobro ni se han confirmado existencias.</p>
+    </section>
+
+    <div class="order-receipt">
+        <section class="panel order-receipt-section">
+            <h2>Entrega</h2>
+            <address>
+                {{ solicitud.direccion }}<br>
+                {{ solicitud.comuna }}, {{ solicitud.ciudad }}<br>
+                Código postal {{ solicitud.codigo_postal }}
+                {% if solicitud.detalles_domicilio %}<br>{{ solicitud.detalles_domicilio }}{% endif %}
+            </address>
+        </section>
+        <section class="panel order-receipt-section">
+            <h2>Productos solicitados</h2>
+            <ul class="checkout-product-list">
+                {% for producto in solicitud.productos %}
+                    <li>
+                        <span>{{ producto.nombre }} × {{ producto.cantidad }}</span>
+                        <strong>{{ producto.subtotal }}</strong>
+                    </li>
+                {% endfor %}
+            </ul>
+            <div class="checkout-total">
+                <span>Total de referencia</span>
+                <strong>{{ solicitud.total }}</strong>
+            </div>
+            <p class="order-status">Estado: <strong>{{ solicitud.estado }}</strong></p>
+        </section>
+    </div>
+    <a class="btn" href="{% url 'mis_pedidos' %}">Ver mis pedidos</a>
+{% endblock %}

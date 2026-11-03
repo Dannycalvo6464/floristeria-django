@@ -1,0 +1,72 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Dirección de entrega | Flores Cali{% endblock %}
+{% block container_class %}checkout-container{% endblock %}
+
+{% block content %}
+    <span class="eyebrow">Último paso</span>
+    <h1 class="page-heading">Dirección de entrega</h1>
+    <p class="page-intro">Completa los datos para enviar tu solicitud de pedido.</p>
+
+    <div class="checkout-layout">
+        <section class="panel checkout-form-panel" aria-labelledby="delivery-title">
+            <h2 id="delivery-title">¿A dónde llevamos tu pedido?</h2>
+            <form method="post" class="checkout-form">
+                {% csrf_token %}
+                <div class="form-field checkout-address">
+                    {{ form.direccion.label_tag }}
+                    {{ form.direccion }}
+                    {% for error in form.direccion.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="checkout-location">
+                    <div class="form-field">
+                        {{ form.codigo_postal.label_tag }}
+                        {{ form.codigo_postal }}
+                        {% for error in form.codigo_postal.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-field">
+                        {{ form.ciudad.label_tag }}
+                        {{ form.ciudad }}
+                        {% for error in form.ciudad.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-field">
+                        {{ form.comuna.label_tag }}
+                        {{ form.comuna }}
+                        {% for error in form.comuna.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+                <div class="form-field">
+                    {{ form.detalles_domicilio.label_tag }}
+                    {{ form.detalles_domicilio }}
+                    <p class="help-text">Puedes indicar casa, unidad, conjunto, torre o referencias para llegar.</p>
+                    {% for error in form.detalles_domicilio.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="checkout-consent">
+                    {{ form.acepta_uso_datos }}
+                    {{ form.acepta_uso_datos.label_tag }}
+                    {% for error in form.acepta_uso_datos.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <button class="btn" type="submit">Enviar solicitud de pedido</button>
+            </form>
+        </section>
+
+        <aside class="checkout-summary" aria-labelledby="checkout-summary-title">
+            <span class="eyebrow">Resumen</span>
+            <h2 id="checkout-summary-title">Tu selección</h2>
+            <ul class="checkout-product-list">
+                {% for producto in productos_carrito %}
+                    <li>
+                        <span>{{ producto.nombre }} × {{ producto.cantidad }}</span>
+                        <strong>{{ producto.subtotal_formateado }}</strong>
+                    </li>
+                {% endfor %}
+            </ul>
+            <div class="checkout-total">
+                <span>Total de referencia</span>
+                <strong>{{ total }}</strong>
+            </div>
+            <p>Enviar la solicitud no genera un cobro ni confirma existencias. Los datos se guardan asociados a tu cuenta para gestionar el pedido.</p>
+            <a class="text-link" href="{% url 'carrito' %}">← Volver al carrito</a>
+        </aside>
+    </div>
+{% endblock %}
