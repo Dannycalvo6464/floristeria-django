@@ -6,7 +6,6 @@
     <span class="eyebrow">Administración</span>
     <h1 class="page-heading">Hola, {{ usuario.nombre }}</h1>
     <p class="page-intro">Herramientas para gestionar las cuentas de usuario existentes.</p>
-    <div class="notice">El catálogo de demostración no se gestiona desde este panel y no hay pedidos ni inventario persistente.</div>
     <div class="dashboard-grid">
         <a class="dashboard-card" href="{% url 'buscar_usuario' %}">Buscar cuentas<span>Busca por nombre de usuario.</span></a>
         <a class="dashboard-card" href="{% url 'actualizar_usuario' %}">Actualizar cuenta<span>Modifica los datos de una cuenta existente.</span></a>

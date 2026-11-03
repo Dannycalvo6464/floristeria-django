@@ -5,9 +5,9 @@
 {% block content %}
     <span class="eyebrow">Mi espacio</span>
     <h1 class="page-heading">Mis pedidos</h1>
-    <section class="form-card">
+    <section class="empty-orders">
+        <span class="empty-orders-icon" aria-hidden="true">▤</span>
         <h2>Aún no hay pedidos para mostrar</h2>
-        <p class="page-intro">La aplicación no cuenta todavía con pedidos persistentes ni flujo de compra confirmado.</p>
         <a class="btn" href="{% url 'catalogo' %}">Explorar el catálogo</a>
     </section>
 {% endblock %}
