@@ -253,7 +253,7 @@ input[type="number"] { max-width: 120px; }
 .dashboard-grid { margin-top: 0; gap: 20px; }
 .dashboard-card { display: flex; min-height: 250px; flex-direction: column; align-items: flex-start; padding: 28px; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .dashboard-card:hover, .dashboard-card:focus-visible { transform: translateY(-3px); border-color: #c8d6c7; box-shadow: var(--shadow); color: var(--wine); }
-.dashboard-card .dashboard-icon { width: 48px; height: 48px; margin-top: 0; margin-bottom: 20px; font-family: "Segoe UI", sans-serif; font-size: 1.5rem; }
+.dashboard-card .dashboard-icon { display: grid; width: 48px; height: 48px; margin-top: 0; margin-bottom: 20px; place-items: center; font-family: "Segoe UI", sans-serif; font-size: 1.5rem; }
 .dashboard-card .dashboard-card-title { margin: 0; color: var(--wine); font-family: Georgia, "Times New Roman", serif; font-size: 1.45rem; font-weight: 700; }
 .dashboard-card .dashboard-card-description { margin-top: 8px; color: var(--muted); font-size: .94rem; line-height: 1.55; }
 .dashboard-card .dashboard-card-action { display: flex; width: 100%; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 22px; color: var(--sage); font-size: .9rem; font-weight: 800; }
