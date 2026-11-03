@@ -1,14 +1,17 @@
 {% extends "usuarios/base.html" %}
 
 {% block title %}Recuperar contraseña | Flores Cali{% endblock %}
-{% block container_class %}narrow{% endblock %}
+{% block container_class %}narrow recovery-page{% endblock %}
 
 {% block content %}
-    <span class="eyebrow">Ayuda con tu cuenta</span>
-    <h1 class="page-heading">Recuperar contraseña</h1>
-    <p class="page-intro">Solicita un enlace por correo para restablecer el acceso.</p>
-    <section class="form-card">
-        {% if mensaje %}<p class="message info" role="status">{{ mensaje }}</p>{% endif %}
+    <header class="recovery-heading">
+        <span class="eyebrow">Ayuda con tu cuenta</span>
+        <h1 class="page-heading">Recuperar contraseña</h1>
+        <p class="page-intro">Solicita un enlace por correo para restablecer el acceso.</p>
+    </header>
+    <section class="form-card recovery-card" aria-labelledby="recovery-form-title">
+        <h2 class="visually-hidden" id="recovery-form-title">Solicitar enlace de recuperación</h2>
+        {% if mensaje %}<p class="message info recovery-message" role="status">{{ mensaje }}</p>{% endif %}
         <form class="form-grid" method="post">
             {% csrf_token %}
             <div class="form-field">
@@ -17,6 +20,8 @@
             </div>
             <button class="btn" type="submit">Enviar enlace de recuperación</button>
         </form>
-        <p class="help-text"><a class="text-link" href="{% url 'login' %}">Volver a iniciar sesión</a></p>
+        <div class="recovery-footer">
+            <a class="text-link" href="{% url 'login' %}">Volver a iniciar sesión</a>
+        </div>
     </section>
 {% endblock %}

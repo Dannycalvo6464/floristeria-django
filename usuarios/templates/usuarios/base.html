@@ -29,7 +29,7 @@
             </nav>
             <div class="nav-actions">
                 <a class="nav-link" href="{% url 'carrito' %}" aria-label="Carrito, {{ carrito_cantidad }} artículos">
-                    Carrito <span class="nav-count">{{ carrito_cantidad }}</span>
+                    Carrito <span class="nav-count" id="cart-count" aria-live="polite">{{ carrito_cantidad }}</span>
                 </a>
                 {% if request.session.usuario_id %}
                     <form method="post" action="{% url 'logout' %}">
@@ -62,5 +62,7 @@
             <span>Catálogo demostrativo. Consulta precios y disponibilidad antes de comprar.</span>
         </div>
     </footer>
+    <div class="toast" id="cart-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>
