@@ -5,9 +5,37 @@
 {% block content %}
     <span class="eyebrow">Mi espacio</span>
     <h1 class="page-heading">Mis pedidos</h1>
-    <section class="empty-orders">
-        <span class="empty-orders-icon" aria-hidden="true">▤</span>
-        <h2>Aún no hay pedidos para mostrar</h2>
-        <a class="btn" href="{% url 'catalogo' %}">Explorar el catálogo</a>
-    </section>
+    {% if solicitudes %}
+        <div class="order-list">
+            {% for solicitud in solicitudes %}
+                <article class="panel order-card">
+                    <div class="order-card-heading">
+                        <div>
+                            <span class="eyebrow">Solicitud #{{ solicitud.id }}</span>
+                            <h2>{{ solicitud.creado_en|date:"j/m/Y" }}</h2>
+                        </div>
+                        <span class="order-status-badge">{{ solicitud.estado }}</span>
+                    </div>
+                    <ul class="checkout-product-list">
+                        {% for producto in solicitud.productos %}
+                            <li>
+                                <span>{{ producto.nombre }} × {{ producto.cantidad }}</span>
+                                <strong>{{ producto.subtotal }}</strong>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    <div class="order-card-footer">
+                        <span>Total de referencia <strong>{{ solicitud.total }}</strong></span>
+                        <a class="text-link" href="{% url 'confirmacion_pedido' solicitud.id %}">Ver solicitud</a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <section class="empty-orders">
+            <span class="empty-orders-icon" aria-hidden="true">▤</span>
+            <h2>Aún no hay pedidos para mostrar</h2>
+            <a class="btn" href="{% url 'catalogo' %}">Explorar el catálogo</a>
+        </section>
+    {% endif %}
 {% endblock %}

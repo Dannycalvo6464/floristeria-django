@@ -40,9 +40,19 @@ WhiteNoise sirve los archivos recopilados, incluidos los estáticos del admin de
 
 ## Base de datos y migraciones
 
-Las migraciones existentes son `usuarios.0001_initial` y `usuarios.0002_usuario_activo`, además de las migraciones estándar de Django. Los cambios de este despliegue no cambian modelos ni esquema, por lo que no se necesita crear una migración nueva. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
+Las migraciones existentes son `usuarios.0001_initial` y `usuarios.0002_usuario_activo`, además de las migraciones estándar de Django. El checkout añade `usuarios.0003_add_delivery_order_requests`, que crea tablas para solicitudes de pedido y sus productos. El cambio es aditivo y no modifica las cuentas existentes.
 
-Antes de ejecutar un comando de base de datos desde Render Shell, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y revisa `python manage.py migrate --plan`. Si muestra migraciones pendientes, revisa el plan y toma un respaldo antes de aplicar `python manage.py migrate`. No ejecutes migraciones automáticamente en el build.
+Antes de aplicar la migración en producción, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y crea un respaldo. Para un despliegue sin interrupciones, configura en Render **Pre-Deploy Command** `python manage.py migrate --noinput` si está disponible en el plan del servicio. No ejecutes migraciones en el build.
+
+Si el plan no ofrece Pre-Deploy Command, despliega el código y ejecuta enseguida desde Render Shell, usando el entorno de la versión desplegada:
+
+```sh
+python manage.py migrate --plan
+python manage.py migrate usuarios 0003_add_delivery_order_requests --noinput
+python manage.py showmigrations usuarios
+```
+
+La opción de checkout requiere una cuenta activa. Al enviarla, la dirección y el consentimiento quedan asociados a esa cuenta; se puede consultar el historial desde **Mis pedidos**. El flujo crea una solicitud pendiente, no procesa pagos ni garantiza inventario. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
 
 ## Contraseñas existentes
 

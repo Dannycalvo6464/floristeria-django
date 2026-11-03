@@ -4,6 +4,7 @@ import smtplib
 import unicodedata
 from functools import wraps
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from django.contrib.auth.hashers import check_password, identify_hasher, make_password
@@ -13,14 +14,16 @@ from django.core import signing
 from django.core.mail import EmailMultiAlternatives
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
-from django.urls import reverse
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 from django.utils.crypto import constant_time_compare, salted_hmac
 from django.utils.html import format_html
 from django.db.models import Q
+from django.db import transaction
 from django.conf import settings
 from django.contrib import messages
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .catalog import (
     PRODUCTOS,
@@ -30,7 +33,8 @@ from .catalog import (
     producto_para_vista,
 )
 from .context_processors import get_cart_quantity
-from .models import Usuario
+from .forms import DireccionEntregaForm
+from .models import DetalleSolicitudPedido, SolicitudPedido, Usuario
 
 
 logger = logging.getLogger(__name__)
@@ -197,11 +201,14 @@ def inicio(request):
 
 
 def login_usuario(request):
-
     mensaje = ""
+    siguiente = (
+        request.POST.get("next", "")
+        if request.method == "POST"
+        else request.GET.get("next", "")
+    )
 
     if request.method == "POST":
-
         correo = request.POST.get("correo", "").strip()
         contrasena = request.POST.get("contrasena", "")
 
@@ -217,6 +224,12 @@ def login_usuario(request):
             request.session["usuario_nombre"] = usuario.nombre
             request.session["usuario_tipo"] = usuario.tipo
 
+            if siguiente and url_has_allowed_host_and_scheme(
+                siguiente,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                return redirect(siguiente)
             if usuario.tipo in {"Admin", "Administrador"}:
                 return redirect("panel_admin")
 
@@ -227,7 +240,7 @@ def login_usuario(request):
     return render(
         request,
         "usuarios/login.html",
-        {"mensaje": mensaje}
+        {"mensaje": mensaje, "next": siguiente}
     )
 
 
@@ -588,11 +601,7 @@ def agregar_al_carrito(request, slug):
     return redirect("carrito")
 
 
-def ver_carrito(request):
-    carrito_sesion = request.session.get("carrito", {})
-    if not isinstance(carrito_sesion, dict):
-        carrito_sesion = {}
-
+def _resumen_carrito(carrito_sesion):
     productos_carrito = []
     carrito_limpio = {}
     total = 0
@@ -615,6 +624,15 @@ def ver_carrito(request):
             }
         )
         carrito_limpio[slug] = cantidad
+    return productos_carrito, carrito_limpio, total
+
+
+def ver_carrito(request):
+    carrito_sesion = request.session.get("carrito", {})
+    if not isinstance(carrito_sesion, dict):
+        carrito_sesion = {}
+
+    productos_carrito, carrito_limpio, total = _resumen_carrito(carrito_sesion)
 
     if carrito_limpio != carrito_sesion:
         request.session["carrito"] = carrito_limpio
@@ -626,6 +644,116 @@ def ver_carrito(request):
             "total": formato_cop(total),
         },
     )
+
+
+@never_cache
+@require_http_methods(["GET", "POST"])
+def finalizar_pedido(request):
+    usuario = Usuario.objects.filter(
+        id=request.session.get("usuario_id"),
+        activo=True,
+    ).first()
+    if not usuario:
+        login_url = f'{reverse("login")}?{urlencode({"next": request.get_full_path()})}'
+        return redirect(login_url)
+
+    request.current_usuario = usuario
+    carrito_sesion = request.session.get("carrito", {})
+    if not isinstance(carrito_sesion, dict):
+        carrito_sesion = {}
+    productos_carrito, carrito_limpio, total = _resumen_carrito(carrito_sesion)
+    if carrito_limpio != carrito_sesion:
+        request.session["carrito"] = carrito_limpio
+    if not productos_carrito:
+        messages.info(request, "Agrega productos al carrito antes de enviar una solicitud.")
+        return redirect("carrito")
+
+    form = DireccionEntregaForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            solicitud = SolicitudPedido.objects.create(
+                usuario=usuario,
+                direccion=form.cleaned_data["direccion"],
+                codigo_postal=form.cleaned_data["codigo_postal"],
+                ciudad=form.cleaned_data["ciudad"],
+                comuna=form.cleaned_data["comuna"],
+                detalles_domicilio=form.cleaned_data["detalles_domicilio"],
+                datos_autorizados=form.cleaned_data["acepta_uso_datos"],
+                total_referencia=total,
+            )
+            DetalleSolicitudPedido.objects.bulk_create(
+                [
+                    DetalleSolicitudPedido(
+                        solicitud=solicitud,
+                        producto_slug=producto["slug"],
+                        producto_nombre=producto["nombre"],
+                        categoria=producto["categoria"],
+                        cantidad=producto["cantidad"],
+                        precio_unitario_referencia=PRODUCTOS_POR_SLUG[
+                            producto["slug"]
+                        ]["precio"],
+                    )
+                    for producto in productos_carrito
+                ]
+            )
+
+        request.session["carrito"] = {}
+        messages.success(
+            request,
+            "Tu solicitud quedó registrada. Puedes consultar su estado en Mis pedidos.",
+        )
+        return redirect("confirmacion_pedido", solicitud_id=solicitud.pk)
+
+    return render(
+        request,
+        "usuarios/finalizar_pedido.html",
+        {
+            "form": form,
+            "productos_carrito": productos_carrito,
+            "total": formato_cop(total),
+        },
+    )
+
+
+@_session_required()
+def confirmacion_pedido(request, solicitud_id):
+    solicitud = get_object_or_404(
+        SolicitudPedido.objects.prefetch_related("productos"),
+        pk=solicitud_id,
+        usuario=request.current_usuario,
+    )
+    return render(
+        request,
+        "usuarios/confirmacion_pedido.html",
+        {
+            "solicitud": _solicitud_para_vista(solicitud),
+        },
+    )
+
+
+def _solicitud_para_vista(solicitud):
+    productos = [
+        {
+            "nombre": detalle.producto_nombre,
+            "categoria": detalle.categoria,
+            "cantidad": detalle.cantidad,
+            "precio_unitario": formato_cop(detalle.precio_unitario_referencia),
+            "subtotal": formato_cop(detalle.subtotal_referencia),
+        }
+        for detalle in solicitud.productos.all()
+    ]
+    return {
+        "id": solicitud.pk,
+        "estado": solicitud.get_estado_display(),
+        "creado_en": solicitud.creado_en,
+        "direccion": solicitud.direccion,
+        "codigo_postal": solicitud.codigo_postal,
+        "ciudad": solicitud.ciudad,
+        "comuna": solicitud.comuna,
+        "detalles_domicilio": solicitud.detalles_domicilio,
+        "productos": productos,
+        "total": formato_cop(solicitud.total_referencia),
+    }
 
 
 @require_POST
@@ -661,9 +789,18 @@ def quitar_del_carrito(request, slug):
 
 @_session_required()
 def mis_pedidos(request):
+    solicitudes = SolicitudPedido.objects.filter(
+        usuario=request.current_usuario
+    ).prefetch_related("productos")
     return render(
         request,
         "usuarios/mis_pedidos.html",
+        {
+            "solicitudes": [
+                _solicitud_para_vista(solicitud)
+                for solicitud in solicitudes
+            ],
+        },
     )
 
 

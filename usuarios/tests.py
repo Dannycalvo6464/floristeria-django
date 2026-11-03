@@ -10,7 +10,7 @@ from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from usuarios.models import Usuario
+from usuarios.models import DetalleSolicitudPedido, SolicitudPedido, Usuario
 
 
 class UsuarioRoutesTest(TestCase):
@@ -24,6 +24,17 @@ class UsuarioRoutesTest(TestCase):
         session.save()
         return usuario
 
+    def _datos_entrega(self, **overrides):
+        return {
+            'direccion': 'Calle 5 # 10-20, San Fernando',
+            'codigo_postal': '760001',
+            'ciudad': 'Cali',
+            'comuna': '19',
+            'detalles_domicilio': 'Unidad 3, casa 12, portería principal',
+            'acepta_uso_datos': 'on',
+            **overrides,
+        }
+
     def test_rutas_del_panel_usuario_existen(self):
         usuario = Usuario.objects.create(
             nombre='Ana', correo='ana@flores.com', contrasena='legacy', tipo='Usuario'
@@ -34,6 +45,7 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(self.client.get(reverse('catalogo')).status_code, 200)
         self.assertEqual(self.client.get(reverse('mis_pedidos')).status_code, 200)
         self.assertEqual(self.client.get(reverse('mi_perfil')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('finalizar_pedido')).status_code, 302)
 
     def test_rutas_privadas_exigen_sesion_y_admin(self):
         self.assertRedirects(self.client.get(reverse('panel_usuario')), reverse('login'))
@@ -53,6 +65,46 @@ class UsuarioRoutesTest(TestCase):
         usuario.save(update_fields=['tipo'])
         self.assertEqual(self.client.get(reverse('panel_admin')).status_code, 200)
         self.assertEqual(self.client.get(reverse('buscar_usuario')).status_code, 200)
+
+    def test_checkout_requiere_sesion_y_regresa_al_checkout_despues_del_login(self):
+        usuario = Usuario.objects.create(
+            nombre='Ana', correo='ana@flores.com', contrasena='legacy', tipo='Usuario'
+        )
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '2'},
+        )
+
+        response = self.client.get(reverse('finalizar_pedido'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('next=%2Ffinalizar_pedido%2F', response['Location'])
+        login_response = self.client.post(
+            reverse('login'),
+            {
+                'correo': usuario.correo,
+                'contrasena': 'legacy',
+                'next': reverse('finalizar_pedido'),
+            },
+        )
+        self.assertRedirects(login_response, reverse('finalizar_pedido'))
+        self.assertEqual(self.client.session['carrito'], {'rosa-roja': 2})
+
+    def test_login_no_redirige_a_un_host_externo_por_next(self):
+        usuario = Usuario.objects.create(
+            nombre='Ana', correo='ana@flores.com', contrasena='legacy', tipo='Usuario'
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'correo': usuario.correo,
+                'contrasena': 'legacy',
+                'next': 'https://sitio-malicioso.example/',
+            },
+        )
+
+        self.assertRedirects(response, reverse('panel_usuario'))
 
     def test_panel_usuario_presenta_accesos_sin_datos_ficticios(self):
         self._login_como()
@@ -89,6 +141,114 @@ class UsuarioRoutesTest(TestCase):
         self.assertNotContains(orders_response, 'pedidos persistentes')
         self.assertEqual(admin_response.status_code, 200)
         self.assertNotContains(admin_response, 'no hay pedidos ni inventario persistente')
+
+    def test_checkout_persiste_solicitud_y_detalles_limpia_carrito_y_muestra_historial(self):
+        usuario = self._login_como()
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '2'},
+        )
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'ramo-tulipanes'}),
+            {'cantidad': '1'},
+        )
+
+        checkout_response = self.client.get(reverse('finalizar_pedido'))
+        self.assertEqual(checkout_response.status_code, 200)
+        self.assertContains(checkout_response, 'Código postal')
+        self.assertContains(checkout_response, 'Comuna')
+        self.assertContains(checkout_response, 'Detalles adicionales (opcional)')
+        self.assertContains(checkout_response, 'Unidad, torre, casa')
+
+        response = self.client.post(
+            reverse('finalizar_pedido'),
+            self._datos_entrega(),
+        )
+
+        solicitud = SolicitudPedido.objects.get(usuario=usuario)
+        self.assertRedirects(
+            response,
+            reverse('confirmacion_pedido', kwargs={'solicitud_id': solicitud.pk}),
+        )
+        self.assertEqual(solicitud.direccion, 'Calle 5 # 10-20, San Fernando')
+        self.assertEqual(solicitud.codigo_postal, '760001')
+        self.assertEqual(solicitud.ciudad, 'Cali')
+        self.assertEqual(solicitud.comuna, '19')
+        self.assertEqual(
+            solicitud.detalles_domicilio,
+            'Unidad 3, casa 12, portería principal',
+        )
+        self.assertTrue(solicitud.datos_autorizados)
+        self.assertEqual(solicitud.total_referencia, 42000)
+        detalles = list(solicitud.productos.order_by('producto_slug'))
+        self.assertEqual(len(detalles), 2)
+        self.assertEqual(
+            [(detalle.producto_slug, detalle.cantidad) for detalle in detalles],
+            [('ramo-tulipanes', 1), ('rosa-roja', 2)],
+        )
+        self.assertEqual(self.client.session['carrito'], {})
+
+        confirmation = self.client.get(
+            reverse('confirmacion_pedido', kwargs={'solicitud_id': solicitud.pk})
+        )
+        self.assertContains(confirmation, 'Solicitud recibida')
+        self.assertContains(confirmation, 'Calle 5 # 10-20, San Fernando')
+        self.assertContains(confirmation, 'Unidad 3, casa 12')
+        self.assertContains(confirmation, '$42.000')
+
+        history = self.client.get(reverse('mis_pedidos'))
+        self.assertContains(history, f'Solicitud #{solicitud.pk}')
+        self.assertContains(history, 'Pendiente de revisión')
+
+    def test_checkout_rechaza_datos_invalidos_y_conserva_el_carrito(self):
+        self._login_como()
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '2'},
+        )
+
+        response = self.client.post(
+            reverse('finalizar_pedido'),
+            self._datos_entrega(codigo_postal='7600', acepta_uso_datos=''),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'código postal colombiano de 6 dígitos')
+        self.assertEqual(
+            response.context['form'].errors['acepta_uso_datos'],
+            ['Debes autorizar el uso de los datos para enviar la solicitud.'],
+        )
+        self.assertEqual(SolicitudPedido.objects.count(), 0)
+        self.assertEqual(self.client.session['carrito'], {'rosa-roja': 2})
+
+    def test_usuario_no_puede_ver_solicitud_de_otra_cuenta(self):
+        propietario = self._login_como()
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '1'},
+        )
+        self.client.post(
+            reverse('finalizar_pedido'),
+            self._datos_entrega(),
+        )
+        solicitud = SolicitudPedido.objects.get(usuario=propietario)
+        otro_usuario = Usuario.objects.create(
+            nombre='Beatriz',
+            correo='beatriz@flores.com',
+            contrasena='legacy',
+            tipo='Usuario',
+        )
+        otro_cliente = Client()
+        session = otro_cliente.session
+        session['usuario_id'] = otro_usuario.pk
+        session['usuario_tipo'] = otro_usuario.tipo
+        session.save()
+
+        response = otro_cliente.get(
+            reverse('confirmacion_pedido', kwargs={'solicitud_id': solicitud.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     def test_formulario_de_registro_exige_csrf(self):
         client = Client(enforce_csrf_checks=True)
