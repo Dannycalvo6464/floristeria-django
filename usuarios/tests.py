@@ -131,6 +131,16 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'Esta cuenta está inactiva.')
         self.assertNotIn('usuario_id', self.client.session)
 
+        response = self.client.post(
+            reverse('login'),
+            {'correo': 'Carlos', 'contrasena': 'incorrecta'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Credenciales incorrectas')
+        self.assertNotContains(response, 'Esta cuenta está inactiva.')
+        self.assertNotIn('usuario_id', self.client.session)
+
     def test_login_mantiene_mensaje_generico_para_credenciales_incorrectas(self):
         Usuario.objects.create(
             nombre='Ana',
