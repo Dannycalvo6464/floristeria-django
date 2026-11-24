@@ -824,6 +824,7 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'Precio unitario')
         self.assertContains(response, 'Subtotal')
         self.assertContains(response, 'Total de referencia')
+        self.assertContains(response, 'cart-summary-actions')
         self.assertContains(response, 'Seguir comprando')
 
     def test_checkout_usa_la_cantidad_guardada_automaticamente_en_el_carrito(self):

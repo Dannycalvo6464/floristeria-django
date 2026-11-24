@@ -59,12 +59,14 @@
                     <strong data-cart-total>{{ total }}</strong>
                 </div>
                 <p>Importe de referencia sujeto a confirmación de disponibilidad. No se realizará un cobro al enviar la solicitud.</p>
-                {% if hay_productos_sin_stock %}
-                    <p class="inventory-warning" role="status">Ajusta el inventario de tu carrito antes de continuar.</p>
-                {% else %}
-                    <a class="btn" href="{% url 'finalizar_pedido' %}" data-cart-continue>Continuar con la dirección</a>
-                {% endif %}
-                <a class="text-link" href="{% url 'catalogo' %}">Seguir comprando</a>
+                <div class="cart-summary-actions">
+                    {% if hay_productos_sin_stock %}
+                        <p class="inventory-warning" role="status">Ajusta el inventario de tu carrito antes de continuar.</p>
+                    {% else %}
+                        <a class="btn" href="{% url 'finalizar_pedido' %}" data-cart-continue>Continuar con la dirección</a>
+                    {% endif %}
+                    <a class="text-link" href="{% url 'catalogo' %}">Seguir comprando</a>
+                </div>
             </aside>
         </div>
     {% else %}
