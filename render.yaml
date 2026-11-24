@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: floristeria-django
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input
+    startCommand: python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application
+    healthCheckPath: /
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: floristeria-django.onrender.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://floristeria-django.onrender.com
+      - key: DATABASE_URL
+        sync: false
