@@ -273,11 +273,12 @@ def login_usuario(request):
 
         usuario = Usuario.objects.filter(
             Q(correo=correo) |
-            Q(nombre=correo),
-            activo=True
+            Q(nombre__iexact=correo)
         ).first()
 
-        if usuario and _verify_and_upgrade_password(usuario, contrasena):
+        if usuario and not usuario.activo:
+            mensaje = "Esta cuenta está inactiva. Contacta a un administrador para reactivarla."
+        elif usuario and _verify_and_upgrade_password(usuario, contrasena):
             request.session.cycle_key()
             request.session["usuario_id"] = usuario.id
             request.session["usuario_nombre"] = usuario.nombre
@@ -294,7 +295,8 @@ def login_usuario(request):
 
             return redirect("panel_usuario")
 
-        mensaje = "Credenciales incorrectas"
+        elif not mensaje:
+            mensaje = "Credenciales incorrectas"
 
     return render(
         request,

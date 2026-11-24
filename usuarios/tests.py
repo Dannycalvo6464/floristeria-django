@@ -113,6 +113,42 @@ class UsuarioRoutesTest(TestCase):
 
         self.assertRedirects(response, reverse('panel_usuario'))
 
+    def test_login_informa_cuando_la_cuenta_esta_inactiva(self):
+        Usuario.objects.create(
+            nombre='Carlos',
+            correo='carlos@flores.com',
+            contrasena='legacy',
+            tipo='Usuario',
+            activo=False,
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {'correo': 'Carlos', 'contrasena': 'legacy'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Esta cuenta está inactiva.')
+        self.assertNotIn('usuario_id', self.client.session)
+
+    def test_login_mantiene_mensaje_generico_para_credenciales_incorrectas(self):
+        Usuario.objects.create(
+            nombre='Ana',
+            correo='ana@flores.com',
+            contrasena='legacy',
+            tipo='Usuario',
+            activo=True,
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {'correo': 'ana@flores.com', 'contrasena': 'incorrecta'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Credenciales incorrectas')
+        self.assertNotContains(response, 'Esta cuenta está inactiva.')
+
     def test_panel_usuario_presenta_accesos_sin_datos_ficticios(self):
         self._login_como()
 
