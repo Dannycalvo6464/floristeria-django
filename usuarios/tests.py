@@ -736,7 +736,14 @@ class UsuarioRoutesTest(TestCase):
         self.assertContains(response, 'Rosa Roja')
         self.assertEqual(
             [producto['slug'] for producto in response.context['productos']],
-            ['rosa-roja'],
+            [
+                'heliconia-rostrata',
+                'hortensia-rosada',
+                'rosa-amarilla',
+                'rosa-blanca',
+                'rosa-roja',
+                'rosa-rosada',
+            ],
         )
 
         response = self.client.get(reverse('catalogo'), {'q': 'orquidea'})
@@ -971,6 +978,40 @@ class InventarioRoutesTest(TestCase):
         self.assertContains(response, 'Agotada')
         self.assertContains(response, 'Rosa Roja')
 
+    def test_catalogo_incluye_20_flores_colombianas_con_stock_pendiente(self):
+        slugs = (
+            'rosa-blanca',
+            'rosa-amarilla',
+            'rosa-rosada',
+            'clavel-rojo',
+            'clavel-blanco',
+            'mini-clavel-surtido',
+            'crisantemo-blanco',
+            'crisantemo-pompon-amarillo',
+            'hortensia-azul',
+            'hortensia-rosada',
+            'astromelia-surtida',
+            'astromelia-blanca',
+            'gerbera-naranja',
+            'gerbera-fucsia',
+            'lirio-oriental-blanco',
+            'lirio-asiatico-amarillo',
+            'orquidea-cattleya',
+            'orquidea-cymbidium',
+            'girasol',
+            'heliconia-rostrata',
+        )
+        flores = Flor.objects.filter(slug__in=slugs, activo=True)
+
+        self.assertEqual(flores.count(), 20)
+        self.assertEqual(flores.filter(cantidad=0).count(), 20)
+        response = self.client.get(reverse('catalogo'))
+        self.assertContains(response, 'Rosa Blanca')
+        self.assertContains(response, 'Clavel Rojo')
+        self.assertContains(response, 'Astromelia Surtida')
+        self.assertContains(response, 'Heliconia Rostrata')
+        self.assertContains(response, 'Agotada')
+
     def test_inventario_requiere_sesion_de_administrador(self):
         guest_client = Client()
         self.assertRedirects(
@@ -1002,22 +1043,18 @@ class InventarioRoutesTest(TestCase):
             precio='18500.00',
             cantidad=12,
         )
-        Flor.objects.create(
-            nombre='Girasol',
-            categoria='Flores de verano',
-            descripcion='Flor amarilla.',
-            precio='9000.00',
-            cantidad=4,
-        )
-
         response = self.client.get(reverse('inventario'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Peonía Coral')
         self.assertContains(response, '12 · Disponible')
 
-        response = self.client.get(reverse('inventario'), {'q': 'verano'})
+        response = self.client.get(reverse('inventario'), {'q': 'Girasol'})
         self.assertContains(response, 'Girasol')
         self.assertNotContains(response, 'Peonía Coral')
+
+        response = self.client.get(reverse('inventario'), {'q': 'Peonías'})
+        self.assertContains(response, 'Peonía Coral')
+        self.assertNotContains(response, 'Girasol')
 
     def test_hu006_agrega_flor_y_la_publica_en_el_catalogo(self):
         response = self.client.post(reverse('crear_flor'), self._crear_flor())
