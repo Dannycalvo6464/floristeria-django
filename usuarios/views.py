@@ -13,6 +13,7 @@ from django.contrib.auth.hashers import check_password, identify_hasher, make_pa
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.forms import BaseFormSet, formset_factory
 from django.core import signing
 from django.core.mail import EmailMultiAlternatives
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse, JsonResponse
@@ -40,6 +41,7 @@ from .forms import (
     CantidadFlorForm,
     DireccionEntregaForm,
     FlorInventarioForm,
+    InventarioStockForm,
     PerfilUsuarioForm,
 )
 from .models import DetalleSolicitudPedido, Flor, SolicitudPedido, Usuario
@@ -620,14 +622,104 @@ def inventario(request):
         )
     paginator = Paginator(flores, 20)
     pagina = paginator.get_page(request.GET.get("page"))
-    for flor in pagina.object_list:
+    flores_pagina = list(pagina.object_list)
+    expected_ids = [flor.pk for flor in flores_pagina]
+
+    class InventarioStockFormSet(BaseFormSet):
+        def __init__(self, *args, expected_ids, **kwargs):
+            self.expected_ids = expected_ids
+            super().__init__(*args, **kwargs)
+
+        def clean(self):
+            super().clean()
+            if any(self.errors):
+                return
+            submitted_ids = [
+                form.cleaned_data["flor_id"]
+                for form in self.forms
+            ]
+            if submitted_ids != self.expected_ids:
+                raise ValidationError(
+                    "La lista de productos cambió. Recarga el inventario antes de guardar."
+                )
+
+    stock_formset_class = formset_factory(
+        InventarioStockForm,
+        formset=InventarioStockFormSet,
+        extra=0,
+        max_num=20,
+        validate_max=True,
+    )
+    if request.method == "POST" and archivadas:
+        messages.error(request, "No se puede actualizar el stock de productos archivados.")
+        return redirect(request.get_full_path())
+
+    if request.method == "POST":
+        stock_formset = stock_formset_class(
+            request.POST,
+            prefix="stocks",
+            expected_ids=expected_ids,
+        )
+        if stock_formset.is_valid():
+            with transaction.atomic():
+                flores_bloqueadas = {
+                    flor.pk: flor
+                    for flor in Flor.objects.select_for_update().filter(
+                        pk__in=expected_ids,
+                        activo=True,
+                    )
+                }
+                if set(flores_bloqueadas) != set(expected_ids):
+                    messages.error(
+                        request,
+                        "El inventario cambió mientras editabas. Recarga la página antes de guardar.",
+                    )
+                    return redirect(request.get_full_path())
+
+                flores_actualizadas = []
+                for form in stock_formset:
+                    flor = flores_bloqueadas[form.cleaned_data["flor_id"]]
+                    nueva_cantidad = form.cleaned_data["cantidad"]
+                    if flor.cantidad != nueva_cantidad:
+                        flor.cantidad = nueva_cantidad
+                        flor.save(update_fields=("cantidad", "actualizado_en"))
+                        flores_actualizadas.append(flor)
+
+            if flores_actualizadas:
+                messages.success(
+                    request,
+                    f"Se actualizaron las existencias de {len(flores_actualizadas)} flores.",
+                )
+            else:
+                messages.info(request, "No había cambios de existencias por guardar.")
+            return redirect(request.get_full_path())
+    else:
+        stock_formset = stock_formset_class(
+            prefix="stocks",
+            expected_ids=expected_ids,
+            initial=[
+                {"flor_id": flor.pk, "cantidad": flor.cantidad}
+                for flor in flores_pagina
+            ],
+        )
+
+    filas_inventario = []
+    for flor, stock_form in zip(flores_pagina, stock_formset.forms):
         flor.precio_formateado = formato_cop(flor.precio)
+        stock_form.fields["cantidad"].widget.attrs.update({
+            "form": "bulk-stock-form",
+            "aria-label": f"Unidades disponibles para {flor.nombre}",
+        })
+        filas_inventario.append({"flor": flor, "stock_form": stock_form})
+
     return render(
         request,
         "usuarios/inventario.html",
         {
             "pagina": pagina,
-            "flores": pagina.object_list,
+            "flores": flores_pagina,
+            "filas_inventario": filas_inventario,
+            "stock_formset": stock_formset,
             "consulta": consulta,
             "archivadas": archivadas,
             "resultados": paginator.count,

@@ -29,6 +29,25 @@
         {{ resultados }} producto{{ resultados|pluralize }} {{ archivadas|yesno:"archivado,activo" }}{{ resultados|pluralize:"s" }}
     </div>
 
+    {% if not archivadas and filas_inventario %}
+        <div class="inventory-bulk-actions">
+            <div>
+                <strong>Actualiza varias existencias</strong>
+                <span>El botón guarda los cambios de esta página.</span>
+            </div>
+            <form id="bulk-stock-form" method="post" action="{{ request.get_full_path }}">
+                {% csrf_token %}
+                {{ stock_formset.management_form }}
+                {% for stock_form in stock_formset %}
+                    {% for hidden in stock_form.hidden_fields %}{{ hidden }}{% endfor %}
+                    {% for error in stock_form.non_field_errors %}<span class="error-text" role="alert">{{ error }}</span>{% endfor %}
+                {% endfor %}
+                {% for error in stock_formset.non_form_errors %}<span class="error-text" role="alert">{{ error }}</span>{% endfor %}
+                <button class="btn" type="submit">Guardar existencias</button>
+            </form>
+        </div>
+    {% endif %}
+
     <div class="table-wrap inventory-table-wrap">
         <table class="inventory-table">
             <thead>
@@ -41,7 +60,8 @@
                 </tr>
             </thead>
             <tbody>
-                {% for flor in flores %}
+                {% for fila in filas_inventario %}
+                    {% with flor=fila.flor stock_form=fila.stock_form %}
                     <tr>
                         <td>
                             <div class="inventory-product">
@@ -62,6 +82,11 @@
                             {% else %}
                                 <span class="stock-badge stock-good">{{ flor.cantidad }} · Disponible</span>
                             {% endif %}
+                            {% if not archivadas %}
+                                <label class="visually-hidden" for="{{ stock_form.cantidad.id_for_label }}">Unidades disponibles para {{ flor.nombre }}</label>
+                                {{ stock_form.cantidad }}
+                                {% for error in stock_form.cantidad.errors %}<span class="error-text" role="alert">{{ error }}</span>{% endfor %}
+                            {% endif %}
                         </td>
                         <td class="inventory-date">{{ flor.actualizado_en|date:"j M Y" }}</td>
                         <td>
@@ -72,12 +97,6 @@
                                         <button class="btn btn-secondary btn-small" type="submit">Restaurar</button>
                                     </form>
                                 {% else %}
-                                    <form class="inventory-stock-form" method="post" action="{% url 'actualizar_cantidad_flor' flor.id %}">
-                                        {% csrf_token %}
-                                        <label class="visually-hidden" for="stock-{{ flor.id }}">Unidades disponibles para {{ flor.nombre }}</label>
-                                        <input id="stock-{{ flor.id }}" name="cantidad" type="number" min="0" max="2147483647" step="1" value="{{ flor.cantidad }}" required>
-                                        <button class="btn btn-secondary btn-small" type="submit">Guardar stock</button>
-                                    </form>
                                     <a class="btn btn-secondary btn-small" href="{% url 'editar_flor' flor.id %}">Editar</a>
                                     <form method="post" action="{% url 'eliminar_flor' flor.id %}" onsubmit="return confirm('¿Archivar este producto? Dejará de aparecer en el catálogo, pero podrás restaurarlo después.');">
                                         {% csrf_token %}
@@ -87,6 +106,7 @@
                             </div>
                         </td>
                     </tr>
+                    {% endwith %}
                 {% empty %}
                     <tr>
                         <td colspan="5">

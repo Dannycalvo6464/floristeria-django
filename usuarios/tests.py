@@ -1027,6 +1027,10 @@ class InventarioRoutesTest(TestCase):
             guest_client.get(reverse('inventario')),
             reverse('login'),
         )
+        self.assertRedirects(
+            guest_client.post(reverse('inventario'), {}),
+            reverse('login'),
+        )
 
         usuario = Usuario.objects.create(
             nombre='Cliente',
@@ -1039,6 +1043,7 @@ class InventarioRoutesTest(TestCase):
         session['usuario_id'] = usuario.pk
         session.save()
         self.assertEqual(normal_client.get(reverse('inventario')).status_code, 403)
+        self.assertEqual(normal_client.post(reverse('inventario'), {}).status_code, 403)
         self.assertEqual(
             normal_client.post(reverse('crear_flor'), self._crear_flor()).status_code,
             403,
@@ -1064,6 +1069,86 @@ class InventarioRoutesTest(TestCase):
         response = self.client.get(reverse('inventario'), {'q': 'Peonías'})
         self.assertContains(response, 'Peonía Coral')
         self.assertNotContains(response, 'Girasol')
+
+    def _datos_stock_pagina(self, response, cantidades=None):
+        filas = response.context['filas_inventario']
+        cantidades = cantidades or {}
+        datos = {
+            'stocks-TOTAL_FORMS': str(len(filas)),
+            'stocks-INITIAL_FORMS': str(len(filas)),
+            'stocks-MIN_NUM_FORMS': '0',
+            'stocks-MAX_NUM_FORMS': '20',
+        }
+        for indice, fila in enumerate(filas):
+            flor = fila['flor']
+            datos[f'stocks-{indice}-flor_id'] = str(flor.pk)
+            datos[f'stocks-{indice}-cantidad'] = str(
+                cantidades.get(flor.pk, flor.cantidad)
+            )
+        return datos
+
+    def test_inventario_guarda_juntas_todas_las_existencias_de_la_pagina(self):
+        response = self.client.get(reverse('inventario'))
+        self.assertContains(response, 'Guardar existencias')
+        self.assertNotContains(response, 'Guardar stock')
+        self.assertContains(response, 'form="bulk-stock-form"')
+        filas = response.context['filas_inventario']
+        self.assertEqual(len(filas), 20)
+        cantidades = {
+            fila['flor'].pk: indice + 1
+            for indice, fila in enumerate(filas)
+        }
+
+        response = self.client.post(
+            reverse('inventario'),
+            self._datos_stock_pagina(response, cantidades),
+        )
+
+        self.assertRedirects(response, reverse('inventario'))
+        self.assertEqual(
+            Flor.objects.filter(pk__in=cantidades, cantidad__gt=0).count(),
+            20,
+        )
+        for flor_id, cantidad in cantidades.items():
+            self.assertEqual(Flor.objects.get(pk=flor_id).cantidad, cantidad)
+
+    def test_inventario_no_guarda_ningun_stock_si_una_cantidad_es_invalida(self):
+        response = self.client.get(reverse('inventario'))
+        filas = response.context['filas_inventario']
+        primera = filas[0]['flor']
+        segunda = filas[1]['flor']
+        datos = self._datos_stock_pagina(
+            response,
+            {primera.pk: 25, segunda.pk: 'cantidad-invalida'},
+        )
+
+        response = self.client.post(reverse('inventario'), datos)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Ingresa una cantidad entera entre 0 y 2.147.483.647.')
+        primera.refresh_from_db()
+        segunda.refresh_from_db()
+        self.assertEqual(primera.cantidad, 0)
+        self.assertEqual(segunda.cantidad, 0)
+
+    def test_guardado_masivo_rechaza_ids_de_flores_alterados(self):
+        response = self.client.get(reverse('inventario'))
+        datos = self._datos_stock_pagina(response)
+        ids_visibles = {
+            fila['flor'].pk for fila in response.context['filas_inventario']
+        }
+        flor_fuera_de_pagina = Flor.objects.filter(activo=True).exclude(
+            pk__in=ids_visibles
+        ).first()
+        datos['stocks-0-flor_id'] = str(flor_fuera_de_pagina.pk)
+        flor = response.context['filas_inventario'][0]['flor']
+
+        response = self.client.post(reverse('inventario'), datos)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'La lista de productos cambió')
+        flor.refresh_from_db()
+        self.assertEqual(flor.cantidad, 0)
 
     def test_hu006_agrega_flor_y_la_publica_en_el_catalogo(self):
         response = self.client.post(reverse('crear_flor'), self._crear_flor())

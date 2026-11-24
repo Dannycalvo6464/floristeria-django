@@ -194,7 +194,17 @@ class CantidadFlorForm(forms.Form):
         min_value=0,
         max_value=2_147_483_647,
         widget=forms.NumberInput(attrs={'min': '0', 'step': '1'}),
+        error_messages={
+            'required': 'Ingresa una cantidad entera entre 0 y 2.147.483.647.',
+            'invalid': 'Ingresa una cantidad entera entre 0 y 2.147.483.647.',
+            'min_value': 'Ingresa una cantidad entera entre 0 y 2.147.483.647.',
+            'max_value': 'Ingresa una cantidad entera entre 0 y 2.147.483.647.',
+        },
     )
+
+
+class InventarioStockForm(CantidadFlorForm):
+    flor_id = forms.IntegerField(widget=forms.HiddenInput)
 
 
 class DireccionEntregaForm(forms.Form):

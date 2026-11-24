@@ -369,6 +369,11 @@ tr:last-child td { border-bottom: 0; }
 .inventory-tabs a { padding: 8px 14px; border-radius: 999px; color: var(--muted); font-size: .88rem; font-weight: 700; text-decoration: none; }
 .inventory-tabs a[aria-current="page"] { background: white; color: var(--wine); box-shadow: 0 1px 5px rgba(67, 45, 50, .1); }
 .inventory-result-count { margin: 0 0 12px; color: var(--muted); font-size: .88rem; }
+.inventory-bulk-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.inventory-bulk-actions > div { display: grid; gap: 3px; }
+.inventory-bulk-actions strong { color: var(--wine); }
+.inventory-bulk-actions span { color: var(--muted); font-size: .86rem; }
+.inventory-bulk-actions form { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0; }
 .inventory-table-wrap { overflow-x: auto; }
 .inventory-table { width: 100%; border-collapse: collapse; text-align: left; }
 .inventory-table th { padding: 14px 18px; background: #f7f4ef; color: var(--muted); font-size: .76rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -386,8 +391,7 @@ tr:last-child td { border-bottom: 0; }
 .stock-empty { background: #fbebea; color: #934b4a; }
 .inventory-actions { display: flex; justify-content: flex-end; gap: 8px; white-space: nowrap; }
 .inventory-actions form { margin: 0; }
-.inventory-stock-form { display: flex; align-items: center; gap: 6px; }
-.inventory-stock-form input { width: 82px; min-height: 38px; padding: 6px 8px; }
+.inventory-table input[type="number"] { width: 82px; min-height: 38px; padding: 6px 8px; }
 .inventory-empty { display: grid; justify-items: center; gap: 10px; padding: 44px 20px; text-align: center; }
 .inventory-empty .inventory-product-placeholder { width: 56px; height: 56px; font-size: 1.6rem; }
 .inventory-empty strong { color: var(--wine); font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; }

@@ -54,7 +54,7 @@ Render registra el resultado de las migraciones en los logs de inicio. Tras el d
 
 ## Inventario del sprint
 
-Desde **Administración → Inventario de flores**, un administrador puede buscar por nombre o categoría, agregar flores con precio/cantidad/descripción e imagen opcional, editar esos datos y archivar o restaurar productos. Archivar es reversible y quita el producto del catálogo público sin borrar los detalles históricos de pedidos. El catálogo, detalle y carrito muestran las existencias registradas y bloquean la solicitud de cantidades superiores al stock disponible.
+Desde **Administración → Inventario de flores**, un administrador puede buscar por nombre o categoría, agregar flores con precio/cantidad/descripción e imagen opcional, editar esos datos y archivar o restaurar productos. Las existencias de varias flores se pueden modificar y guardar juntas desde la página actual del inventario; si un valor no es válido, no se guarda ningún cambio del lote. Archivar es reversible y quita el producto del catálogo público sin borrar los detalles históricos de pedidos. El catálogo, detalle y carrito muestran las existencias registradas y bloquean la solicitud de cantidades superiores al stock disponible.
 
 La opción de checkout requiere una cuenta activa. Al enviarla, la dirección y el consentimiento quedan asociados a esa cuenta; se puede consultar el historial desde **Mis pedidos**. El flujo crea una solicitud pendiente, no procesa pagos ni garantiza inventario. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
 
