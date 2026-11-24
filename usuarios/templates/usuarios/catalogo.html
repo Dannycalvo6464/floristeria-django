@@ -34,6 +34,9 @@
                 <a href="{% url 'detalle_producto' producto.slug %}">
                     <img src="{{ producto.imagen }}" alt="{{ producto.alt }}" loading="lazy">
                 </a>
+                {% if producto.imagen_credito and producto.imagen_fuente %}
+                    <p class="image-credit"><a href="{{ producto.imagen_fuente }}" target="_blank" rel="noopener noreferrer">Foto: {{ producto.imagen_credito }}</a></p>
+                {% endif %}
                 <div class="product-body">
                     <span class="product-category">{{ producto.categoria }}</span>
                     <h2 class="product-title"><a href="{% url 'detalle_producto' producto.slug %}">{{ producto.nombre }}</a></h2>

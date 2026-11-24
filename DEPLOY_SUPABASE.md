@@ -40,7 +40,7 @@ WhiteNoise sirve los archivos recopilados, incluidos los estáticos del admin de
 
 ## Base de datos y migraciones
 
-Las migraciones de usuarios incluyen `0001_initial`, `0002_usuario_activo`, `0003_add_delivery_order_requests`, `0004_flor`, `0005_seed_catalog_inventory`, `0006_usuario_direccion` y `0007_seed_colombian_flowers`. La cuarta crea la tabla `flores`; la quinta incorpora al inventario los cuatro productos que ya estaban en el catálogo; la sexta añade la dirección al perfil; la séptima incorpora 20 variedades florales cultivadas en Colombia. Las flores nuevas inician con cantidad **0**: un administrador debe registrar existencias reales antes de aceptar solicitudes. Las solicitudes conservan una copia del nombre, categoría y precio para mantener el historial aunque un producto se archive.
+Las migraciones de usuarios incluyen `0001_initial`, `0002_usuario_activo`, `0003_add_delivery_order_requests`, `0004_flor`, `0005_seed_catalog_inventory`, `0006_usuario_direccion`, `0007_seed_colombian_flowers` y `0008_flower_images_and_attribution`. La cuarta crea la tabla `flores`; la quinta incorpora al inventario los cuatro productos que ya estaban en el catálogo; la sexta añade la dirección al perfil; la séptima incorpora 20 variedades florales cultivadas en Colombia; la octava asigna imágenes individuales y su atribución/fuente. Las flores nuevas inician con cantidad **0**: un administrador debe registrar existencias reales antes de aceptar solicitudes. Las solicitudes conservan una copia del nombre, categoría y precio para mantener el historial aunque un producto se archive.
 
 Antes de aplicar la migración en producción, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y crea un respaldo. No ejecutes migraciones en el build.
 
@@ -50,7 +50,7 @@ En planes pagos, configura en Render **Pre-Deploy Command** `python manage.py mi
 python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application
 ```
 
-Render registra el resultado de las migraciones en los logs de inicio. Tras el despliegue confirma que aparezca `Applying usuarios.0007_seed_colombian_flowers... OK` junto con las migraciones pendientes anteriores. `migrate` se ejecuta en cada inicio, pero Django solo aplica las migraciones pendientes.
+Render registra el resultado de las migraciones en los logs de inicio. Tras el despliegue confirma que aparezca `Applying usuarios.0008_flower_images_and_attribution... OK` junto con las migraciones pendientes anteriores. `migrate` se ejecuta en cada inicio, pero Django solo aplica las migraciones pendientes.
 
 ## Inventario del sprint
 

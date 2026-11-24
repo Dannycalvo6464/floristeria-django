@@ -93,6 +93,8 @@ class Flor(models.Model):
         validators=[MaxValueValidator(2_147_483_647)],
     )
     imagen_url = models.URLField(max_length=500, blank=True)
+    imagen_credito = models.CharField(max_length=150, blank=True)
+    imagen_fuente = models.URLField(max_length=500, blank=True)
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)

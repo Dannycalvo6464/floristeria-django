@@ -967,6 +967,8 @@ class InventarioRoutesTest(TestCase):
             'precio': '18500.00',
             'cantidad': '12',
             'imagen_url': '',
+            'imagen_credito': '',
+            'imagen_fuente': '',
         }
         datos.update(overrides)
         return datos
@@ -1005,7 +1007,14 @@ class InventarioRoutesTest(TestCase):
 
         self.assertEqual(flores.count(), 20)
         self.assertEqual(flores.filter(cantidad=0).count(), 20)
+        self.assertEqual(
+            len(set(flores.values_list('imagen_url', flat=True))),
+            20,
+        )
+        self.assertEqual(flores.exclude(imagen_credito='').count(), 20)
+        self.assertEqual(flores.exclude(imagen_fuente='').count(), 20)
         response = self.client.get(reverse('catalogo'))
+        self.assertEqual(response.content.count(b'class="image-credit"'), 20)
         self.assertContains(response, 'Rosa Blanca')
         self.assertContains(response, 'Clavel Rojo')
         self.assertContains(response, 'Astromelia Surtida')

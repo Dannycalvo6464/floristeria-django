@@ -170,6 +170,8 @@ img { max-width: 100%; }
 .product-card { display: flex; min-width: 0; flex-direction: column; }
 .product-card[hidden], [data-empty-results][hidden] { display: none; }
 .product-card img { display: block; width: 100%; height: 230px; object-fit: cover; background: var(--rose); }
+.image-credit { margin: 6px 12px 0; color: var(--muted); font-size: .72rem; }
+.image-credit a { color: inherit; }
 .product-body { display: flex; flex: 1; flex-direction: column; padding: 20px; }
 .product-category { color: var(--sage); font-size: .76rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .product-title { margin: 6px 0; color: var(--wine); font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; line-height: 1.25; }

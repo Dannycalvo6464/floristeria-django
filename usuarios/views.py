@@ -212,6 +212,8 @@ def _flor_para_catalogo(flor):
             "https://images.unsplash.com/photo-1490750967868-88aa4486c946"
             "?auto=format&fit=crop&w=900&q=80"
         ),
+        "imagen_credito": flor.imagen_credito,
+        "imagen_fuente": flor.imagen_fuente,
         "alt": f"{flor.nombre}, {flor.categoria.lower()}",
         "stock": flor.cantidad,
         "inventario_gestionado": True,

@@ -93,12 +93,31 @@ class FlorInventarioForm(forms.ModelForm):
 
     class Meta:
         model = Flor
-        fields = ('nombre', 'categoria', 'descripcion', 'precio', 'cantidad', 'imagen_url')
+        fields = (
+            'nombre',
+            'categoria',
+            'descripcion',
+            'precio',
+            'cantidad',
+            'imagen_url',
+            'imagen_credito',
+            'imagen_fuente',
+        )
+        labels = {
+            'imagen_credito': 'Crédito de la imagen',
+            'imagen_fuente': 'Fuente y licencia de la imagen',
+        }
+        help_texts = {
+            'imagen_credito': 'Indica el autor y la licencia mostrados en la fuente.',
+            'imagen_fuente': 'Enlace a la página de origen de la imagen.',
+        }
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 4}),
             'precio': forms.NumberInput(attrs={'min': '0.01', 'step': '0.01'}),
             'cantidad': forms.NumberInput(attrs={'min': '0', 'step': '1'}),
             'imagen_url': forms.URLInput(attrs={'placeholder': 'https://…'}),
+            'imagen_credito': forms.TextInput(attrs={'placeholder': 'Autor y licencia'}),
+            'imagen_fuente': forms.URLInput(attrs={'placeholder': 'https://commons.wikimedia.org/…'}),
         }
 
     def clean_nombre(self):
