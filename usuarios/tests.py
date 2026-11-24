@@ -51,6 +51,7 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(self.client.get(reverse('catalogo')).status_code, 200)
         self.assertEqual(self.client.get(reverse('mis_pedidos')).status_code, 200)
         self.assertEqual(self.client.get(reverse('mi_perfil')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('editar_mi_perfil')).status_code, 200)
         self.assertEqual(self.client.get(reverse('finalizar_pedido')).status_code, 302)
 
     def test_rutas_privadas_exigen_sesion_y_admin(self):
@@ -132,17 +133,33 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, usuario.nombre)
         self.assertContains(response, usuario.correo)
-        self.assertContains(response, 'Cambiar contraseña')
-        self.assertContains(response, 'Dirección')
+        self.assertContains(response, 'Aún no has agregado una dirección.')
+        self.assertContains(response, 'Editar mis datos')
+        self.assertContains(response, reverse('editar_mi_perfil'))
+        self.assertNotContains(response, 'Cambiar contraseña')
+        self.assertNotContains(response, 'Guardar cambios')
         self.assertContains(response, 'profile-card')
         self.assertContains(response, 'Volver a mi espacio')
         self.assertNotContains(response, 'contacta con la administración')
+
+    def test_cliente_accede_al_formulario_de_edicion_desde_el_perfil(self):
+        usuario = self._login_como()
+        usuario.direccion = 'Calle 5 # 10-20'
+        usuario.save(update_fields=['direccion'])
+
+        response = self.client.get(reverse('editar_mi_perfil'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Editar mis datos')
+        self.assertContains(response, 'Cambiar contraseña')
+        self.assertContains(response, 'value="Calle 5 # 10-20"')
+        self.assertContains(response, reverse('mi_perfil'))
 
     def test_cliente_actualiza_nombre_y_direccion_desde_su_perfil(self):
         usuario = self._login_como()
 
         response = self.client.post(
-            reverse('mi_perfil'),
+            reverse('editar_mi_perfil'),
             {'nombre': 'Ana María', 'direccion': 'Carrera 10 # 20-30'},
         )
 
@@ -151,12 +168,13 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(usuario.nombre, 'Ana María')
         self.assertEqual(usuario.direccion, 'Carrera 10 # 20-30')
         self.assertEqual(self.client.session['usuario_nombre'], 'Ana María')
+        self.assertContains(self.client.get(reverse('mi_perfil')), 'Ana María')
 
     def test_cliente_cambia_contrasena_solo_con_contrasena_actual_valida(self):
         usuario = self._login_como()
 
         response = self.client.post(
-            reverse('mi_perfil'),
+            reverse('editar_mi_perfil'),
             {
                 'nombre': usuario.nombre,
                 'direccion': 'Carrera 10 # 20-30',
@@ -171,7 +189,7 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(usuario.contrasena, 'legacy')
 
         response = self.client.post(
-            reverse('mi_perfil'),
+            reverse('editar_mi_perfil'),
             {
                 'nombre': usuario.nombre,
                 'direccion': 'Carrera 10 # 20-30',
@@ -831,6 +849,11 @@ class UsuarioRoutesTest(TestCase):
             {'nombre': 'Nombre cambiado', 'direccion': 'Nueva dirección'},
         )
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.get(reverse('mi_perfil')).status_code, 403)
+        self.assertEqual(
+            self.client.get(reverse('editar_mi_perfil')).status_code,
+            403,
+        )
         admin.refresh_from_db()
         self.assertEqual(admin.nombre, 'Ana')
         self.assertEqual(admin.direccion, '')
@@ -838,6 +861,7 @@ class UsuarioRoutesTest(TestCase):
         self.client.get(reverse('logout'))
         self._login_como(tipo='Usuario')
         self.assertEqual(self.client.get(reverse('mi_perfil')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('editar_mi_perfil')).status_code, 200)
 
     def test_paginas_y_acciones_de_administracion(self):
         self._login_como(tipo='Admin')

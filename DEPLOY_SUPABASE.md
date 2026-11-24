@@ -58,7 +58,7 @@ Desde **Administración → Inventario de flores**, un administrador puede busca
 
 La opción de checkout requiere una cuenta activa. Al enviarla, la dirección y el consentimiento quedan asociados a esa cuenta; se puede consultar el historial desde **Mis pedidos**. El flujo crea una solicitud pendiente, no procesa pagos ni garantiza inventario. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
 
-Desde **Mi espacio → Mi perfil**, cada cliente puede actualizar su nombre y dirección, y cambiar su contraseña confirmando primero la contraseña actual. La dirección guardada se propone como valor inicial en el checkout; los datos de cada pedido siguen guardándose como una copia propia de la solicitud.
+Desde **Mi espacio → Mi perfil**, cada cliente consulta su nombre, correo y dirección. El botón **Editar mis datos** abre el formulario para cambiar nombre o dirección, y actualizar su contraseña tras confirmar la contraseña actual. La dirección guardada se propone como valor inicial en el checkout; los datos de cada pedido siguen guardándose como una copia propia de la solicitud.
 
 ## Contraseñas existentes
 

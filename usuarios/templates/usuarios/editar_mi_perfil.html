@@ -1,0 +1,70 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Editar mi perfil | Flores Cali{% endblock %}
+{% block container_class %}profile-container{% endblock %}
+
+{% block content %}
+    <header class="profile-heading">
+        <span class="eyebrow">Mi espacio</span>
+        <h1 class="page-heading">Editar mis datos</h1>
+        <p class="page-intro">Actualiza tu información personal y guarda los cambios en tu cuenta.</p>
+    </header>
+
+    <section class="profile-card" aria-labelledby="edit-profile-title">
+        <div class="profile-identity">
+            <span class="profile-avatar" aria-hidden="true">{{ usuario.nombre|first|upper }}</span>
+            <div>
+                <span class="eyebrow">Perfil personal</span>
+                <h2 id="edit-profile-title">Actualiza tu información</h2>
+                <p>Administra tus datos sin crear una cuenta nueva.</p>
+            </div>
+        </div>
+
+        <form method="post" class="profile-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="error-text" role="alert">{{ form.non_field_errors }}</div>
+            {% endif %}
+            <div class="form-field">
+                {{ form.nombre.label_tag }}
+                {{ form.nombre }}
+                {% for error in form.nombre.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="form-field">
+                <label for="profile-email">Correo electrónico</label>
+                <input id="profile-email" type="email" value="{{ usuario.correo }}" disabled>
+                <p class="help-text">El correo se usa para iniciar sesión y no se cambia desde esta sección.</p>
+            </div>
+            <div class="form-field">
+                {{ form.direccion.label_tag }}
+                {{ form.direccion }}
+                {% for error in form.direccion.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+            </div>
+            <fieldset class="profile-password">
+                <legend>Cambiar contraseña (opcional)</legend>
+                <p class="help-text">Deja estos campos vacíos si no deseas cambiarla.</p>
+                <div class="form-field">
+                    {{ form.contrasena_actual.label_tag }}
+                    {{ form.contrasena_actual }}
+                    {% for error in form.contrasena_actual.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="profile-password-fields">
+                    <div class="form-field">
+                        {{ form.nueva_contrasena.label_tag }}
+                        {{ form.nueva_contrasena }}
+                        {% for error in form.nueva_contrasena.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-field">
+                        {{ form.confirmar_contrasena.label_tag }}
+                        {{ form.confirmar_contrasena }}
+                        {% for error in form.confirmar_contrasena.errors %}<p class="error-text">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+            <div class="profile-actions">
+                <button class="btn" type="submit">Guardar cambios</button>
+                <a class="btn btn-secondary" href="{% url 'mi_perfil' %}">Cancelar</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

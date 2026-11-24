@@ -1104,6 +1104,21 @@ def mi_perfil(request):
         return HttpResponseForbidden(
             "La edición del perfil personal está disponible para clientes."
         )
+    return render(
+        request,
+        "usuarios/mi_perfil.html",
+        {"usuario": usuario},
+    )
+
+
+@_session_required()
+@require_http_methods(["GET", "POST"])
+def editar_mi_perfil(request):
+    usuario = request.current_usuario
+    if usuario.tipo in {"Admin", "Administrador"}:
+        return HttpResponseForbidden(
+            "La edición del perfil personal está disponible para clientes."
+        )
     form = PerfilUsuarioForm(
         request.POST or None,
         usuario=usuario,
@@ -1120,7 +1135,7 @@ def mi_perfil(request):
             )
             return render(
                 request,
-                "usuarios/mi_perfil.html",
+                "usuarios/editar_mi_perfil.html",
                 {"usuario": usuario, "form": form},
                 status=400,
             )
@@ -1139,7 +1154,7 @@ def mi_perfil(request):
 
     return render(
         request,
-        "usuarios/mi_perfil.html",
+        "usuarios/editar_mi_perfil.html",
         {"usuario": usuario, "form": form},
     )
 
