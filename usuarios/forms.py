@@ -1,9 +1,57 @@
+import re
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
 from .models import Flor
+
+
+class PrecioPesosColombianosField(forms.IntegerField):
+    default_error_messages = {
+        'invalid': 'Ingresa un precio en pesos enteros, por ejemplo 12.000.',
+        'min_value': 'El precio debe ser de al menos $1 COP.',
+    }
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            min_value=1,
+            widget=forms.TextInput(
+                attrs={
+                    'inputmode': 'numeric',
+                    'autocomplete': 'off',
+                    'placeholder': 'Ej. 12.000',
+                }
+            ),
+            **kwargs,
+        )
+
+    def to_python(self, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith('$'):
+                value = value[1:].strip()
+            if not re.fullmatch(r'(?:\d+|\d{1,3}(?:\.\d{3})+)', value):
+                raise forms.ValidationError(
+                    self.error_messages['invalid'],
+                    code='invalid',
+                )
+            value = value.replace('.', '')
+        return super().to_python(value)
+
+    def prepare_value(self, value):
+        if value in self.empty_values:
+            return value
+        try:
+            decimal_amount = Decimal(str(value))
+        except InvalidOperation:
+            return value
+        if decimal_amount != decimal_amount.to_integral_value():
+            return value
+        amount = int(decimal_amount)
+        return f'{amount:,}'.replace(',', '.')
 
 
 class PerfilUsuarioForm(forms.Form):
@@ -86,6 +134,11 @@ class PerfilUsuarioForm(forms.Form):
 
 
 class FlorInventarioForm(forms.ModelForm):
+    precio = PrecioPesosColombianosField(
+        label='Precio (COP)',
+        help_text='Ingresa pesos enteros. Ejemplo: 12.000 pesos.',
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
@@ -113,7 +166,6 @@ class FlorInventarioForm(forms.ModelForm):
         }
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 4}),
-            'precio': forms.NumberInput(attrs={'min': '0.01', 'step': '0.01'}),
             'cantidad': forms.NumberInput(attrs={'min': '0', 'step': '1'}),
             'imagen_url': forms.URLInput(attrs={'placeholder': 'https://…'}),
             'imagen_credito': forms.TextInput(attrs={'placeholder': 'Autor y licencia'}),

@@ -964,7 +964,7 @@ class InventarioRoutesTest(TestCase):
             'nombre': 'Peonía Coral',
             'categoria': 'Peonías',
             'descripcion': 'Flores frescas para celebrar momentos especiales.',
-            'precio': '18500.00',
+            'precio': '18.500',
             'cantidad': '12',
             'imagen_url': '',
             'imagen_credito': '',
@@ -1078,6 +1078,29 @@ class InventarioRoutesTest(TestCase):
             200,
         )
 
+    def test_precio_se_ingresa_en_pesos_colombianos_sin_decimales(self):
+        response = self.client.get(reverse('crear_flor'))
+        self.assertContains(response, 'Precio (COP)')
+        self.assertContains(response, 'placeholder="Ej. 12.000"')
+
+        response = self.client.post(reverse('crear_flor'), self._crear_flor())
+        self.assertRedirects(response, reverse('inventario'))
+        flor = Flor.objects.get(nombre='Peonía Coral')
+        self.assertEqual(flor.precio, Decimal('18500.00'))
+
+        response = self.client.get(
+            reverse('editar_flor', kwargs={'flor_id': flor.pk})
+        )
+        self.assertContains(response, 'value="18.500"')
+
+        response = self.client.post(
+            reverse('crear_flor'),
+            self._crear_flor(nombre='Rosa de prueba', precio='18.500,50'),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Ingresa un precio en pesos enteros')
+        self.assertFalse(Flor.objects.filter(nombre='Rosa de prueba').exists())
+
     def test_formulario_rechaza_nombre_duplicado_y_datos_invalidos(self):
         Flor.objects.create(
             nombre='Peonía Coral',
@@ -1119,7 +1142,7 @@ class InventarioRoutesTest(TestCase):
             self._crear_flor(
                 nombre='Peonía de jardín',
                 categoria='Peonías especiales',
-                precio='22000.00',
+                precio='22.000',
             ),
         )
         self.assertRedirects(response, reverse('inventario'))
