@@ -28,8 +28,14 @@
                 {% endif %}
             </nav>
             <div class="nav-actions">
-                <a class="nav-link" href="{% url 'carrito' %}" aria-label="Carrito, {{ carrito_cantidad }} artículos">
-                    Carrito <span class="nav-count" id="cart-count" aria-live="polite">{{ carrito_cantidad }}</span>
+                <a class="nav-link nav-cart-link" href="{% url 'carrito' %}" aria-label="Carrito, {{ carrito_cantidad }} artículos">
+                    <svg class="nav-cart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                        <circle cx="9" cy="20" r="1"></circle>
+                        <circle cx="19" cy="20" r="1"></circle>
+                        <path d="M2.5 3h2l2.7 12.2a2 2 0 0 0 2 1.6h9.3a2 2 0 0 0 1.9-1.4L22 8H6"></path>
+                    </svg>
+                    <span>Carrito</span>
+                    <span class="nav-count" id="cart-count" aria-live="polite">{{ carrito_cantidad }}</span>
                 </a>
                 {% if request.session.usuario_id %}
                     <form method="post" action="{% url 'logout' %}">

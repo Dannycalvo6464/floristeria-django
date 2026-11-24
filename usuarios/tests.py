@@ -683,6 +683,8 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(self.client.session['carrito'], {'rosa-roja': 2})
         catalog_response = self.client.get(reverse('catalogo'))
         self.assertContains(catalog_response, 'Carrito, 2 artículos')
+        self.assertContains(catalog_response, 'class="nav-cart-icon"')
+        self.assertContains(catalog_response, 'aria-hidden="true" focusable="false"')
         self.assertContains(catalog_response, 'data-cart-form')
         self.assertContains(catalog_response, 'usuarios/js/cart.js')
 
