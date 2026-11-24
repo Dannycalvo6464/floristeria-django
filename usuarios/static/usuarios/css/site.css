@@ -341,9 +341,9 @@ input[type="number"] { max-width: 120px; }
 .cart-summary-total strong { color: var(--wine); font-size: 1.8rem; line-height: 1.2; }
 .cart-summary > p { margin: 0; color: var(--muted); font-size: .86rem; }
 .cart-summary-actions { display: grid; justify-items: stretch; gap: 12px; }
-.cart-summary-actions .text-link { justify-self: start; }
+.cart-summary-actions .text-link { justify-self: start; padding-inline: 20px; }
 .cart-summary-actions .inventory-warning { margin: 0; }
-.cart-summary .btn { width: 100%; }
+.cart-summary .btn { width: 100%; justify-content: flex-start; text-align: left; }
 .empty-cart { display: grid; justify-items: center; padding: clamp(32px, 7vw, 68px) 24px; border: 1px dashed #d7d2ca; border-radius: 24px; background: rgba(255, 253, 250, .72); text-align: center; }
 .empty-cart-icon { display: grid; width: 76px; height: 76px; margin-bottom: 20px; place-items: center; border-radius: 50%; background: var(--sage-pale); color: var(--sage); font-size: 2rem; }
 .empty-cart h2 { margin: 8px 0; color: var(--wine); font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.5rem, 3vw, 2rem); }
