@@ -40,7 +40,7 @@ WhiteNoise sirve los archivos recopilados, incluidos los estáticos del admin de
 
 ## Base de datos y migraciones
 
-Las migraciones de usuarios incluyen `0001_initial`, `0002_usuario_activo`, `0003_add_delivery_order_requests`, `0004_flor` y `0005_seed_catalog_inventory`. La cuarta crea la tabla `flores`; la quinta incorpora al inventario los cuatro productos que ya estaban en el catálogo, con cantidad inicial **0** para que el administrador registre existencias reales antes de aceptar solicitudes. Las solicitudes conservan una copia del nombre, categoría y precio para mantener el historial aunque un producto se archive.
+Las migraciones de usuarios incluyen `0001_initial`, `0002_usuario_activo`, `0003_add_delivery_order_requests`, `0004_flor`, `0005_seed_catalog_inventory` y `0006_usuario_direccion`. La cuarta crea la tabla `flores`; la quinta incorpora al inventario los cuatro productos que ya estaban en el catálogo, con cantidad inicial **0** para que el administrador registre existencias reales antes de aceptar solicitudes. La sexta añade la dirección al perfil del cliente. Las solicitudes conservan una copia del nombre, categoría y precio para mantener el historial aunque un producto se archive.
 
 Antes de aplicar la migración en producción, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y crea un respaldo. No ejecutes migraciones en el build.
 
@@ -50,13 +50,15 @@ En planes pagos, configura en Render **Pre-Deploy Command** `python manage.py mi
 python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application
 ```
 
-Render registra el resultado de las migraciones en los logs de inicio. Tras el despliegue confirma que aparezcan `Applying usuarios.0004_flor... OK` y `Applying usuarios.0005_seed_catalog_inventory... OK`. `migrate` se ejecuta en cada inicio, pero Django solo aplica las migraciones pendientes.
+Render registra el resultado de las migraciones en los logs de inicio. Tras el despliegue confirma que aparezca `Applying usuarios.0006_usuario_direccion... OK` junto con las migraciones pendientes anteriores. `migrate` se ejecuta en cada inicio, pero Django solo aplica las migraciones pendientes.
 
 ## Inventario del sprint
 
 Desde **Administración → Inventario de flores**, un administrador puede buscar por nombre o categoría, agregar flores con precio/cantidad/descripción e imagen opcional, editar esos datos y archivar o restaurar productos. Archivar es reversible y quita el producto del catálogo público sin borrar los detalles históricos de pedidos. El catálogo, detalle y carrito muestran las existencias registradas y bloquean la solicitud de cantidades superiores al stock disponible.
 
 La opción de checkout requiere una cuenta activa. Al enviarla, la dirección y el consentimiento quedan asociados a esa cuenta; se puede consultar el historial desde **Mis pedidos**. El flujo crea una solicitud pendiente, no procesa pagos ni garantiza inventario. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
+
+Desde **Mi espacio → Mi perfil**, cada cliente puede actualizar su nombre y dirección, y cambiar su contraseña confirmando primero la contraseña actual. La dirección guardada se propone como valor inicial en el checkout; los datos de cada pedido siguen guardándose como una copia propia de la solicitud.
 
 ## Contraseñas existentes
 

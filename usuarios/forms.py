@@ -1,7 +1,88 @@
 from django import forms
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
 from .models import Flor
+
+
+class PerfilUsuarioForm(forms.Form):
+    nombre = forms.CharField(
+        label='Nombre',
+        max_length=100,
+        widget=forms.TextInput(attrs={'autocomplete': 'name'}),
+    )
+    direccion = forms.CharField(
+        label='Dirección',
+        max_length=200,
+        widget=forms.TextInput(
+            attrs={
+                'autocomplete': 'street-address',
+                'placeholder': 'Calle, carrera, número y barrio',
+            }
+        ),
+    )
+    contrasena_actual = forms.CharField(
+        label='Contraseña actual',
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={'autocomplete': 'current-password'}
+        ),
+    )
+    nueva_contrasena = forms.CharField(
+        label='Nueva contraseña',
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={'autocomplete': 'new-password'}
+        ),
+    )
+    confirmar_contrasena = forms.CharField(
+        label='Confirmar nueva contraseña',
+        required=False,
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={'autocomplete': 'new-password'}
+        ),
+    )
+
+    def __init__(self, *args, usuario, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['nombre'].initial = usuario.nombre
+        self.fields['direccion'].initial = usuario.direccion
+        self.usuario = usuario
+
+    def clean(self):
+        cleaned_data = super().clean()
+        current_password = cleaned_data.get('contrasena_actual')
+        new_password = cleaned_data.get('nueva_contrasena')
+        confirmation = cleaned_data.get('confirmar_contrasena')
+
+        if not any((current_password, new_password, confirmation)):
+            return cleaned_data
+
+        if not current_password:
+            self.add_error('contrasena_actual', 'Ingresa tu contraseña actual.')
+        if not new_password:
+            self.add_error('nueva_contrasena', 'Ingresa una nueva contraseña.')
+        if not confirmation:
+            self.add_error(
+                'confirmar_contrasena',
+                'Confirma tu nueva contraseña.',
+            )
+        if new_password and confirmation and new_password != confirmation:
+            self.add_error(
+                'confirmar_contrasena',
+                'Las contraseñas no coinciden.',
+            )
+        if new_password:
+            try:
+                validate_password(new_password, user=self.usuario)
+            except ValidationError as error:
+                self.add_error('nueva_contrasena', error)
+
+        return cleaned_data
 
 
 class FlorInventarioForm(forms.ModelForm):

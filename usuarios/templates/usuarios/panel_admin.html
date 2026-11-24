@@ -5,7 +5,7 @@
 {% block content %}
     <span class="eyebrow">Administración</span>
     <h1 class="page-heading">Hola, {{ usuario.nombre }}</h1>
-    <p class="page-intro">Gestiona el catálogo, las existencias y las cuentas de Flores Cali.</p>
+    <p class="page-intro">Gestiona el catálogo, las existencias y el acceso de las cuentas de Flores Cali.</p>
     <section class="inventory-overview" aria-label="Resumen del inventario">
         <div><span>Flores activas</span><strong>{{ inventario_resumen.productos }}</strong></div>
         <div><span>Unidades registradas</span><strong>{{ inventario_resumen.unidades }}</strong></div>
@@ -37,7 +37,6 @@
         </div>
     <div class="dashboard-grid">
         <a class="dashboard-card" href="{% url 'buscar_usuario' %}">Buscar cuentas<span>Busca por nombre de usuario.</span></a>
-        <a class="dashboard-card" href="{% url 'actualizar_usuario' %}">Actualizar cuenta<span>Modifica los datos de una cuenta existente.</span></a>
         <a class="dashboard-card" href="{% url 'activar_usuario' %}">Activar cuenta<span>Activa una cuenta deshabilitada.</span></a>
         <a class="dashboard-card" href="{% url 'inactivar_usuario' %}">Inactivar cuenta<span>Desactiva una cuenta existente.</span></a>
     </div>

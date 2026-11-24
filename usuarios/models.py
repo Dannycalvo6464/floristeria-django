@@ -7,6 +7,7 @@ class Usuario(models.Model):
     nombre = models.CharField(max_length=100)
     tipo = models.CharField(max_length=20)
     correo = models.EmailField(max_length=100)
+    direccion = models.CharField(max_length=200, blank=True)
     contrasena = models.CharField(max_length=100)
 
     activo = models.BooleanField(default=True)

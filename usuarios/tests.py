@@ -132,9 +132,73 @@ class UsuarioRoutesTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, usuario.nombre)
         self.assertContains(response, usuario.correo)
+        self.assertContains(response, 'Cambiar contraseña')
+        self.assertContains(response, 'Dirección')
         self.assertContains(response, 'profile-card')
         self.assertContains(response, 'Volver a mi espacio')
         self.assertNotContains(response, 'contacta con la administración')
+
+    def test_cliente_actualiza_nombre_y_direccion_desde_su_perfil(self):
+        usuario = self._login_como()
+
+        response = self.client.post(
+            reverse('mi_perfil'),
+            {'nombre': 'Ana María', 'direccion': 'Carrera 10 # 20-30'},
+        )
+
+        self.assertRedirects(response, reverse('mi_perfil'))
+        usuario.refresh_from_db()
+        self.assertEqual(usuario.nombre, 'Ana María')
+        self.assertEqual(usuario.direccion, 'Carrera 10 # 20-30')
+        self.assertEqual(self.client.session['usuario_nombre'], 'Ana María')
+
+    def test_cliente_cambia_contrasena_solo_con_contrasena_actual_valida(self):
+        usuario = self._login_como()
+
+        response = self.client.post(
+            reverse('mi_perfil'),
+            {
+                'nombre': usuario.nombre,
+                'direccion': 'Carrera 10 # 20-30',
+                'contrasena_actual': 'incorrecta',
+                'nueva_contrasena': 'FloresSeguras!2026',
+                'confirmar_contrasena': 'FloresSeguras!2026',
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        usuario.refresh_from_db()
+        self.assertEqual(usuario.contrasena, 'legacy')
+
+        response = self.client.post(
+            reverse('mi_perfil'),
+            {
+                'nombre': usuario.nombre,
+                'direccion': 'Carrera 10 # 20-30',
+                'contrasena_actual': 'legacy',
+                'nueva_contrasena': 'FloresSeguras!2026',
+                'confirmar_contrasena': 'FloresSeguras!2026',
+            },
+        )
+
+        self.assertRedirects(response, reverse('mi_perfil'))
+        usuario.refresh_from_db()
+        self.assertTrue(check_password('FloresSeguras!2026', usuario.contrasena))
+        self.assertNotEqual(usuario.contrasena, 'legacy')
+
+    def test_checkout_precarga_direccion_del_perfil(self):
+        usuario = self._login_como()
+        usuario.direccion = 'Carrera 10 # 20-30'
+        usuario.save(update_fields=['direccion'])
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': 'rosa-roja'}),
+            {'cantidad': '1'},
+        )
+
+        response = self.client.get(reverse('finalizar_pedido'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="Carrera 10 # 20-30"')
 
     def test_pedidos_y_panel_admin_no_muestran_avisos_de_funcionalidad_pendiente(self):
         self._login_como(tipo='Administrador')
@@ -739,10 +803,41 @@ class UsuarioRoutesTest(TestCase):
     def test_cerrar_sesion_requiere_post_e_invalida_la_sesion(self):
         self._login_como()
         logout_url = reverse('logout')
-        self.assertEqual(self.client.get(logout_url).status_code, 405)
+        response = self.client.get(logout_url)
+        self.assertRedirects(response, reverse('inicio'))
+        self.assertIn('usuario_id', self.client.session)
         response = self.client.post(logout_url)
         self.assertRedirects(response, reverse('login'))
         self.assertNotIn('usuario_id', self.client.session)
+
+    def test_cliente_no_puede_entrar_a_rutas_de_administracion(self):
+        self._login_como(tipo='Usuario')
+
+        for name, kwargs in (
+            ('panel_admin', {}),
+            ('inventario', {}),
+            ('crear_flor', {}),
+        ):
+            with self.subTest(route=name):
+                self.assertEqual(
+                    self.client.get(reverse(name, kwargs=kwargs)).status_code,
+                    403,
+                )
+
+    def test_solo_clientes_pueden_editar_su_perfil_personal(self):
+        admin = self._login_como(tipo='Administrador')
+        response = self.client.post(
+            reverse('mi_perfil'),
+            {'nombre': 'Nombre cambiado', 'direccion': 'Nueva dirección'},
+        )
+        self.assertEqual(response.status_code, 403)
+        admin.refresh_from_db()
+        self.assertEqual(admin.nombre, 'Ana')
+        self.assertEqual(admin.direccion, '')
+
+        self.client.get(reverse('logout'))
+        self._login_como(tipo='Usuario')
+        self.assertEqual(self.client.get(reverse('mi_perfil')).status_code, 200)
 
     def test_paginas_y_acciones_de_administracion(self):
         self._login_como(tipo='Admin')
@@ -752,29 +847,13 @@ class UsuarioRoutesTest(TestCase):
         )
         for name in (
             'buscar_usuario',
-            'actualizar_usuario',
             'activar_usuario',
             'inactivar_usuario',
         ):
             self.assertEqual(self.client.get(reverse(name)).status_code, 200)
 
-        response = self.client.post(
-            reverse('actualizar_usuario'),
-            {'buscar': '1', 'nombre': 'Inactivo'},
-        )
-        self.assertEqual(response.context['usuario'].pk, inactivo.pk)
-        response = self.client.post(
-            reverse('actualizar_usuario'),
-            {
-                'actualizar': '1',
-                'id': inactivo.pk,
-                'nombre': 'Cuenta actualizada',
-                'correo': 'actualizada@flores.com',
-            },
-        )
-        self.assertRedirects(response, reverse('actualizar_usuario'))
-        inactivo.refresh_from_db()
-        self.assertEqual(inactivo.nombre, 'Cuenta actualizada')
+        response = self.client.get('/actualizar_usuario/')
+        self.assertEqual(response.status_code, 404)
 
         self.client.post(
             reverse('activar_usuario'),

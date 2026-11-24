@@ -10,7 +10,6 @@ from usuarios.views import (
     activar_usuario,
     crear_usuario,
     buscar_usuario,
-    actualizar_usuario,
     inactivar_usuario,
     inventario,
     crear_flor,
@@ -60,6 +59,5 @@ urlpatterns = [
     path('', inicio, name='inicio'),
     path('crear_usuario/', crear_usuario, name='crear_usuario'),
     path('buscar_usuario/', buscar_usuario, name='buscar_usuario'),
-    path('actualizar_usuario/', actualizar_usuario, name='actualizar_usuario'),
     path('inactivar_usuario/', inactivar_usuario, name='inactivar_usuario'),
 ]

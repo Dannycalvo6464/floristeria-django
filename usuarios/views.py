@@ -36,7 +36,12 @@ from .catalog import (
     producto_para_vista,
 )
 from .context_processors import get_cart_quantity
-from .forms import CantidadFlorForm, DireccionEntregaForm, FlorInventarioForm
+from .forms import (
+    CantidadFlorForm,
+    DireccionEntregaForm,
+    FlorInventarioForm,
+    PerfilUsuarioForm,
+)
 from .models import DetalleSolicitudPedido, Flor, SolicitudPedido, Usuario
 
 
@@ -542,47 +547,6 @@ def buscar_usuario(request):
 
 
 @_session_required(admin_only=True)
-def actualizar_usuario(request):
-    usuario = None
-
-    if request.method == "POST":
-
-        if "buscar" in request.POST:
-            nombre = request.POST.get("nombre", "").strip()
-            if nombre:
-                usuario = Usuario.objects.filter(nombre__icontains=nombre).first()
-            if not usuario:
-                messages.error(request, "No encontramos una cuenta con ese nombre.")
-
-        elif "actualizar" in request.POST:
-            usuario = get_object_or_404(Usuario, id=request.POST.get("id"))
-            usuario.nombre = request.POST.get("nombre", "").strip()
-            usuario.correo = request.POST.get("correo", "").strip()
-            nueva_contrasena = request.POST.get("contrasena", "")
-            if nueva_contrasena:
-                error_contrasena = _password_error(nueva_contrasena)
-                if error_contrasena:
-                    messages.error(request, error_contrasena)
-                    return render(
-                        request,
-                        "usuarios/actualizar_usuario.html",
-                        {"usuario": usuario},
-                        status=400,
-                    )
-                usuario.contrasena = make_password(nueva_contrasena)
-
-            usuario.save()
-            messages.success(request, "Usuario actualizado correctamente.")
-            return redirect("actualizar_usuario")
-
-    return render(
-        request,
-        "usuarios/actualizar_usuario.html",
-        {"usuario": usuario}
-    )
-
-
-@_session_required(admin_only=True)
 def inactivar_usuario(request):
     usuarios = Usuario.objects.filter(activo=True)
 
@@ -966,7 +930,10 @@ def finalizar_pedido(request):
         )
         return redirect("carrito")
 
-    form = DireccionEntregaForm(request.POST or None)
+    form = DireccionEntregaForm(
+        request.POST or None,
+        initial={"direccion": usuario.direccion},
+    )
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             solicitud = SolicitudPedido.objects.create(
@@ -1132,14 +1099,58 @@ def mis_pedidos(request):
 
 @_session_required()
 def mi_perfil(request):
+    usuario = request.current_usuario
+    if usuario.tipo in {"Admin", "Administrador"}:
+        return HttpResponseForbidden(
+            "La edición del perfil personal está disponible para clientes."
+        )
+    form = PerfilUsuarioForm(
+        request.POST or None,
+        usuario=usuario,
+    )
+    if request.method == "POST" and form.is_valid():
+        nueva_contrasena = form.cleaned_data["nueva_contrasena"]
+        if nueva_contrasena and not _verify_and_upgrade_password(
+            usuario,
+            form.cleaned_data["contrasena_actual"],
+        ):
+            form.add_error(
+                "contrasena_actual",
+                "La contraseña actual no es correcta.",
+            )
+            return render(
+                request,
+                "usuarios/mi_perfil.html",
+                {"usuario": usuario, "form": form},
+                status=400,
+            )
+
+        usuario.nombre = form.cleaned_data["nombre"]
+        usuario.direccion = form.cleaned_data["direccion"]
+        update_fields = ["nombre", "direccion"]
+        if nueva_contrasena:
+            usuario.contrasena = make_password(nueva_contrasena)
+            update_fields.append("contrasena")
+            request.session.cycle_key()
+        usuario.save(update_fields=update_fields)
+        request.session["usuario_nombre"] = usuario.nombre
+        messages.success(request, "Tu perfil se actualizó correctamente.")
+        return redirect("mi_perfil")
+
     return render(
         request,
         "usuarios/mi_perfil.html",
-        {"usuario": request.current_usuario}
+        {"usuario": usuario, "form": form},
     )
 
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 def logout_usuario(request):
+    if request.method == "GET":
+        messages.info(
+            request,
+            "Para cerrar sesión, utiliza el botón Cerrar sesión.",
+        )
+        return redirect("inicio")
     request.session.flush()
     return redirect("login")
