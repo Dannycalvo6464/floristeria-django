@@ -71,4 +71,17 @@ def formato_cop(valor):
 
 
 def producto_para_vista(producto):
-    return {**producto, "precio_formateado": formato_cop(producto["precio"])}
+    stock = producto.get("stock")
+    if stock is None:
+        disponibilidad = "Existencia por confirmar"
+    elif stock == 0:
+        disponibilidad = "Agotada"
+    elif stock <= 5:
+        disponibilidad = f"Últimas {stock} unidades"
+    else:
+        disponibilidad = "Disponible"
+    return {
+        **producto,
+        "precio_formateado": formato_cop(producto["precio"]),
+        "disponibilidad": disponibilidad,
+    }

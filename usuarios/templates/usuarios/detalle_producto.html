@@ -11,15 +11,25 @@
             <h1>{{ producto.nombre }}</h1>
             <p>{{ producto.descripcion }}</p>
             <p class="product-price">{{ producto.precio_formateado }}</p>
-            <p class="price-note">Precio de referencia. Disponibilidad por confirmar.</p>
-            <form class="form-grid" method="post" action="{% url 'agregar_al_carrito' producto.slug %}">
-                {% csrf_token %}
-                <div class="form-field">
-                    <label for="cantidad">Unidades</label>
-                    <input id="cantidad" name="cantidad" type="number" min="1" step="1" value="1" required>
-                </div>
-                <button class="btn" type="submit">Agregar al carrito</button>
-            </form>
+            <p class="price-note">Precio de referencia.</p>
+            {% if producto.inventario_gestionado %}
+                <p class="product-stock{% if producto.stock == 0 %} empty{% elif producto.stock <= 5 %} low{% endif %}">{{ producto.disponibilidad }}</p>
+            {% else %}
+                <p class="price-note">Existencia por confirmar.</p>
+            {% endif %}
+            {% if not producto.inventario_gestionado or producto.stock > 0 %}
+                <form class="form-grid" method="post" action="{% url 'agregar_al_carrito' producto.slug %}">
+                    {% csrf_token %}
+                    <div class="form-field">
+                        <label for="cantidad">Unidades</label>
+                        <input id="cantidad" name="cantidad" type="number" min="1" step="1" value="1"{% if producto.inventario_gestionado %} max="{{ producto.stock }}"{% endif %} required>
+                    </div>
+                    <button class="btn" type="submit">Agregar al carrito</button>
+                </form>
+            {% else %}
+                <p class="inventory-warning">Esta flor está agotada por ahora.</p>
+                <a class="btn btn-secondary" href="{% url 'catalogo' %}">Volver al catálogo</a>
+            {% endif %}
         </div>
     </section>
 {% endblock %}

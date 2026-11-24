@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input
-    startCommand: gunicorn Floristeria.wsgi:application
+    startCommand: python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application
     healthCheckPath: /
     envVars:
       - key: DJANGO_DEBUG

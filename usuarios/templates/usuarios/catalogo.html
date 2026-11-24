@@ -39,14 +39,23 @@
                     <h2 class="product-title"><a href="{% url 'detalle_producto' producto.slug %}">{{ producto.nombre }}</a></h2>
                     <p class="product-description">{{ producto.descripcion }}</p>
                     <p class="product-price">{{ producto.precio_formateado }}</p>
-                    <span class="price-note">Precio de referencia · existencia por confirmar</span>
+                    <span class="price-note">Precio de referencia</span>
+                    {% if producto.inventario_gestionado %}
+                        <span class="product-stock{% if producto.stock == 0 %} empty{% elif producto.stock <= 5 %} low{% endif %}">{{ producto.disponibilidad }}</span>
+                    {% else %}
+                        <span class="price-note">Existencia por confirmar</span>
+                    {% endif %}
                     <div class="product-actions">
                         <a class="btn btn-secondary btn-small" href="{% url 'detalle_producto' producto.slug %}">Ver detalles</a>
-                        <form method="post" action="{% url 'agregar_al_carrito' producto.slug %}" data-cart-form>
-                            {% csrf_token %}
-                            <input type="hidden" name="cantidad" value="1">
-                            <button class="btn btn-small" type="submit">Agregar al carrito</button>
-                        </form>
+                        {% if not producto.inventario_gestionado or producto.stock > 0 %}
+                            <form method="post" action="{% url 'agregar_al_carrito' producto.slug %}" data-cart-form>
+                                {% csrf_token %}
+                                <input type="hidden" name="cantidad" value="1">
+                                <button class="btn btn-small" type="submit">Agregar al carrito</button>
+                            </form>
+                        {% else %}
+                            <button class="btn btn-small" type="button" disabled>Agotada</button>
+                        {% endif %}
                     </div>
                 </div>
             </article>

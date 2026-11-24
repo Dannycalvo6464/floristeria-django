@@ -39,6 +39,9 @@
                         <p class="product-description">{{ producto.descripcion }}</p>
                         <p class="product-price">{{ producto.precio_formateado }}</p>
                         <span class="price-note">Precio de referencia</span>
+                        {% if producto.inventario_gestionado %}
+                            <span class="product-stock{% if producto.stock == 0 %} empty{% elif producto.stock <= 5 %} low{% endif %}">{{ producto.disponibilidad }}</span>
+                        {% endif %}
                     </div>
                 </article>
             {% endfor %}

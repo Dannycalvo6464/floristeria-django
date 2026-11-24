@@ -1,6 +1,7 @@
 import json
 import re
 from io import StringIO
+from decimal import Decimal
 from urllib.error import HTTPError
 from unittest.mock import patch
 
@@ -10,10 +11,15 @@ from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from usuarios.models import DetalleSolicitudPedido, SolicitudPedido, Usuario
+from usuarios.models import DetalleSolicitudPedido, Flor, SolicitudPedido, Usuario
 
 
 class UsuarioRoutesTest(TestCase):
+    def setUp(self):
+        Flor.objects.filter(
+            slug__in=('rosa-roja', 'ramo-tulipanes', 'orquidea-blanca', 'lirio-del-valle')
+        ).update(cantidad=100)
+
     def _login_como(self, tipo='Usuario'):
         usuario = Usuario.objects.create(
             nombre='Ana', correo='ana@flores.com', contrasena='legacy', tipo=tipo
@@ -523,7 +529,7 @@ class UsuarioRoutesTest(TestCase):
 
         content = response.content.decode()
         self.assertIn('Rosa Roja', content)
-        self.assertIn('existencia por confirmar', content)
+        self.assertIn('Disponible', content)
         self.assertNotIn('Este catálogo conserva los productos de demostración existentes', content)
         self.assertIn('Recomendación educativa', content)
         self.assertIn('Aniversario', content)
@@ -782,3 +788,261 @@ class UsuarioRoutesTest(TestCase):
         )
         inactivo.refresh_from_db()
         self.assertFalse(inactivo.activo)
+
+
+class InventarioRoutesTest(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create(
+            nombre='Admin',
+            correo='admin@flores.com',
+            contrasena='legacy',
+            tipo='Administrador',
+        )
+        session = self.client.session
+        session['usuario_id'] = self.admin.pk
+        session['usuario_tipo'] = self.admin.tipo
+        session.save()
+
+    def _crear_flor(self, **overrides):
+        datos = {
+            'nombre': 'Peonía Coral',
+            'categoria': 'Peonías',
+            'descripcion': 'Flores frescas para celebrar momentos especiales.',
+            'precio': '18500.00',
+            'cantidad': '12',
+            'imagen_url': '',
+        }
+        datos.update(overrides)
+        return datos
+
+    def test_catalogo_existente_se_importa_con_stock_cero_hasta_que_se_registre(self):
+        flor = Flor.objects.get(slug='rosa-roja')
+        self.assertEqual(flor.cantidad, 0)
+        response = self.client.get(reverse('catalogo'))
+        self.assertContains(response, 'Agotada')
+        self.assertContains(response, 'Rosa Roja')
+
+    def test_inventario_requiere_sesion_de_administrador(self):
+        guest_client = Client()
+        self.assertRedirects(
+            guest_client.get(reverse('inventario')),
+            reverse('login'),
+        )
+
+        usuario = Usuario.objects.create(
+            nombre='Cliente',
+            correo='cliente@flores.com',
+            contrasena='legacy',
+            tipo='Usuario',
+        )
+        normal_client = Client()
+        session = normal_client.session
+        session['usuario_id'] = usuario.pk
+        session.save()
+        self.assertEqual(normal_client.get(reverse('inventario')).status_code, 403)
+        self.assertEqual(
+            normal_client.post(reverse('crear_flor'), self._crear_flor()).status_code,
+            403,
+        )
+
+    def test_hu005_consulta_inventario_y_busca_por_nombre_o_categoria(self):
+        Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=12,
+        )
+        Flor.objects.create(
+            nombre='Girasol',
+            categoria='Flores de verano',
+            descripcion='Flor amarilla.',
+            precio='9000.00',
+            cantidad=4,
+        )
+
+        response = self.client.get(reverse('inventario'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Peonía Coral')
+        self.assertContains(response, '12 · Disponible')
+
+        response = self.client.get(reverse('inventario'), {'q': 'verano'})
+        self.assertContains(response, 'Girasol')
+        self.assertNotContains(response, 'Peonía Coral')
+
+    def test_hu006_agrega_flor_y_la_publica_en_el_catalogo(self):
+        response = self.client.post(reverse('crear_flor'), self._crear_flor())
+        self.assertRedirects(response, reverse('inventario'))
+
+        flor = Flor.objects.get(nombre='Peonía Coral')
+        self.assertEqual(flor.slug, 'peonia-coral')
+        self.assertEqual(flor.cantidad, 12)
+        self.assertContains(self.client.get(reverse('catalogo')), 'Peonía Coral')
+        self.assertEqual(
+            self.client.get(reverse('detalle_producto', kwargs={'slug': flor.slug})).status_code,
+            200,
+        )
+
+    def test_formulario_rechaza_nombre_duplicado_y_datos_invalidos(self):
+        Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=12,
+        )
+        response = self.client.post(reverse('crear_flor'), self._crear_flor())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Ya existe una flor activa con ese nombre')
+
+        response = self.client.post(
+            reverse('crear_flor'),
+            self._crear_flor(nombre='Rosa blanca', cantidad='-1', precio='0'),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Flor.objects.filter(nombre='Rosa blanca').exists())
+
+    def test_hu007_edita_datos_y_existencias_sin_cambiar_el_enlace(self):
+        flor = Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=12,
+        )
+        slug_original = flor.slug
+        response = self.client.post(
+            reverse('actualizar_cantidad_flor', kwargs={'flor_id': flor.pk}),
+            {'cantidad': '7'},
+        )
+        self.assertRedirects(response, reverse('inventario'))
+        flor.refresh_from_db()
+        self.assertEqual(flor.cantidad, 7)
+
+        response = self.client.post(
+            reverse('editar_flor', kwargs={'flor_id': flor.pk}),
+            self._crear_flor(
+                nombre='Peonía de jardín',
+                categoria='Peonías especiales',
+                precio='22000.00',
+            ),
+        )
+        self.assertRedirects(response, reverse('inventario'))
+        flor.refresh_from_db()
+        self.assertEqual(flor.nombre, 'Peonía de jardín')
+        self.assertEqual(flor.slug, slug_original)
+        self.assertEqual(flor.cantidad, 7)
+        self.assertEqual(str(flor.precio), '22000.00')
+
+    def test_hu008_archiva_por_post_y_permite_restaurar(self):
+        flor = Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=12,
+        )
+        delete_url = reverse('eliminar_flor', kwargs={'flor_id': flor.pk})
+        self.assertEqual(self.client.get(delete_url).status_code, 405)
+        response = self.client.post(delete_url)
+        self.assertRedirects(response, reverse('inventario'))
+        flor.refresh_from_db()
+        self.assertFalse(flor.activo)
+        self.assertNotContains(self.client.get(reverse('catalogo')), 'Peonía Coral')
+        self.assertContains(
+            self.client.get(reverse('inventario'), {'estado': 'archivadas'}),
+            'Peonía Coral',
+        )
+
+        response = self.client.post(
+            reverse('restaurar_flor', kwargs={'flor_id': flor.pk})
+        )
+        self.assertRedirects(response, reverse('inventario'))
+        flor.refresh_from_db()
+        self.assertTrue(flor.activo)
+
+    def test_catalogo_y_carrito_respetan_existencias(self):
+        flor = Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=2,
+        )
+        add_url = reverse('agregar_al_carrito', kwargs={'slug': flor.slug})
+        response = self.client.post(add_url, {'cantidad': '3'})
+        self.assertRedirects(
+            response,
+            reverse('detalle_producto', kwargs={'slug': flor.slug}),
+        )
+        self.assertNotIn('carrito', self.client.session)
+
+        self.client.post(add_url, {'cantidad': '2'})
+        cart_response = self.client.get(reverse('carrito'))
+        self.assertContains(cart_response, 'Existencias registradas: 2')
+        self.assertContains(cart_response, 'max="2"')
+
+        update_response = self.client.post(
+            reverse('actualizar_carrito', kwargs={'slug': flor.slug}),
+            {'cantidad': '3'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(update_response.status_code, 400)
+        self.assertEqual(self.client.session['carrito'][flor.slug], 2)
+
+    def test_checkout_guarda_el_precio_y_el_nombre_del_producto_del_inventario(self):
+        flor = Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=3,
+        )
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': flor.slug}),
+            {'cantidad': '2'},
+        )
+        response = self.client.post(
+            reverse('finalizar_pedido'),
+            {
+                'direccion': 'Calle 5 # 10-20, San Fernando',
+                'codigo_postal': '760001',
+                'ciudad': 'Cali',
+                'comuna': '19',
+                'detalles_domicilio': '',
+                'acepta_uso_datos': 'on',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        detalle = DetalleSolicitudPedido.objects.get(producto_slug=flor.slug)
+        self.assertEqual(detalle.producto_nombre, 'Peonía Coral')
+        self.assertEqual(detalle.precio_unitario_referencia, Decimal('18500.00'))
+
+    def test_checkout_impide_enviar_solicitud_si_el_stock_bajo_despues_de_agregar(self):
+        flor = Flor.objects.create(
+            nombre='Peonía Coral',
+            categoria='Peonías',
+            descripcion='Flor de temporada.',
+            precio='18500.00',
+            cantidad=3,
+        )
+        self.client.post(
+            reverse('agregar_al_carrito', kwargs={'slug': flor.slug}),
+            {'cantidad': '3'},
+        )
+        Flor.objects.filter(pk=flor.pk).update(cantidad=2)
+
+        response = self.client.post(
+            reverse('finalizar_pedido'),
+            {
+                'direccion': 'Calle 5 # 10-20, San Fernando',
+                'codigo_postal': '760001',
+                'ciudad': 'Cali',
+                'comuna': '19',
+                'detalles_domicilio': '',
+                'acepta_uso_datos': 'on',
+            },
+        )
+
+        self.assertRedirects(response, reverse('carrito'))
+        self.assertFalse(SolicitudPedido.objects.exists())

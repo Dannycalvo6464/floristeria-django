@@ -1,6 +1,49 @@
 from django import forms
 from django.core.validators import RegexValidator
 
+from .models import Flor
+
+
+class FlorInventarioForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields.pop('cantidad')
+
+    class Meta:
+        model = Flor
+        fields = ('nombre', 'categoria', 'descripcion', 'precio', 'cantidad', 'imagen_url')
+        widgets = {
+            'descripcion': forms.Textarea(attrs={'rows': 4}),
+            'precio': forms.NumberInput(attrs={'min': '0.01', 'step': '0.01'}),
+            'cantidad': forms.NumberInput(attrs={'min': '0', 'step': '1'}),
+            'imagen_url': forms.URLInput(attrs={'placeholder': 'https://…'}),
+        }
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data['nombre'].strip()
+        duplicados = Flor.objects.filter(nombre__iexact=nombre, activo=True)
+        if self.instance.pk:
+            duplicados = duplicados.exclude(pk=self.instance.pk)
+        if duplicados.exists():
+            raise forms.ValidationError('Ya existe una flor activa con ese nombre.')
+        return nombre
+
+    def clean_categoria(self):
+        return self.cleaned_data['categoria'].strip()
+
+    def clean_descripcion(self):
+        return self.cleaned_data['descripcion'].strip()
+
+
+class CantidadFlorForm(forms.Form):
+    cantidad = forms.IntegerField(
+        label='Unidades disponibles',
+        min_value=0,
+        max_value=2_147_483_647,
+        widget=forms.NumberInput(attrs={'min': '0', 'step': '1'}),
+    )
+
 
 class DireccionEntregaForm(forms.Form):
     direccion = forms.CharField(

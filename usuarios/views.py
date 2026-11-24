@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 from django.contrib.auth.hashers import check_password, identify_hasher, make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.core import signing
 from django.core.mail import EmailMultiAlternatives
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse, JsonResponse
@@ -20,7 +21,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 from django.utils.crypto import constant_time_compare, salted_hmac
 from django.utils.html import format_html
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.db import transaction
 from django.conf import settings
 from django.contrib import messages
@@ -35,8 +36,8 @@ from .catalog import (
     producto_para_vista,
 )
 from .context_processors import get_cart_quantity
-from .forms import DireccionEntregaForm
-from .models import DetalleSolicitudPedido, SolicitudPedido, Usuario
+from .forms import CantidadFlorForm, DireccionEntregaForm, FlorInventarioForm
+from .models import DetalleSolicitudPedido, Flor, SolicitudPedido, Usuario
 
 
 logger = logging.getLogger(__name__)
@@ -195,11 +196,61 @@ def _session_required(admin_only=False):
     return decorator
 
 
+def _flor_para_catalogo(flor):
+    return {
+        "slug": flor.slug,
+        "nombre": flor.nombre,
+        "categoria": flor.categoria,
+        "precio": flor.precio,
+        "descripcion": flor.descripcion,
+        "imagen": flor.imagen_url or (
+            "https://images.unsplash.com/photo-1490750967868-88aa4486c946"
+            "?auto=format&fit=crop&w=900&q=80"
+        ),
+        "alt": f"{flor.nombre}, {flor.categoria.lower()}",
+        "stock": flor.cantidad,
+        "inventario_gestionado": True,
+    }
+
+
+def _productos_inventario():
+    return [
+        _flor_para_catalogo(flor)
+        for flor in Flor.objects.filter(activo=True)
+    ]
+
+
+def _todos_los_productos():
+    slugs_gestionados = set(Flor.objects.values_list("slug", flat=True))
+    productos_fijos = [
+        {**producto, "stock": None, "inventario_gestionado": False}
+        for producto in PRODUCTOS
+        if producto["slug"] not in slugs_gestionados
+    ]
+    return productos_fijos + _productos_inventario()
+
+
+def _obtener_producto(slug):
+    flor = Flor.objects.filter(slug=slug).first()
+    if flor:
+        return _flor_para_catalogo(flor) if flor.activo else None
+    producto = PRODUCTOS_POR_SLUG.get(slug)
+    if producto:
+        return {**producto, "stock": None, "inventario_gestionado": False}
+    return None
+
+
 def inicio(request):
+    productos_inventario = _productos_inventario()
+    productos_destacados = (
+        [producto_para_vista(p) for p in productos_inventario[:3]]
+        if productos_inventario
+        else [producto_para_vista(p) for p in PRODUCTOS[:3]]
+    )
     return render(
         request,
         "usuarios/inicio.html",
-        {"productos_destacados": [producto_para_vista(p) for p in PRODUCTOS[:3]]},
+        {"productos_destacados": productos_destacados},
     )
 
 
@@ -574,11 +625,122 @@ def activar_usuario(request):
 
 @_session_required(admin_only=True)
 def panel_admin(request):
+    flores_activas = Flor.objects.filter(activo=True)
     return render(
         request,
         "usuarios/panel_admin.html",
-        {"usuario": request.current_usuario}
+        {
+            "usuario": request.current_usuario,
+            "inventario_resumen": {
+                "productos": flores_activas.count(),
+                "unidades": flores_activas.aggregate(total=Sum("cantidad"))["total"] or 0,
+                "agotadas": flores_activas.filter(cantidad=0).count(),
+            },
+        },
     )
+
+
+@_session_required(admin_only=True)
+def inventario(request):
+    consulta = request.GET.get("q", "").strip()[:100]
+    archivadas = request.GET.get("estado") == "archivadas"
+    flores = Flor.objects.filter(activo=not archivadas)
+    if consulta:
+        flores = flores.filter(
+            Q(nombre__icontains=consulta)
+            | Q(categoria__icontains=consulta)
+            | Q(slug__icontains=consulta)
+        )
+    paginator = Paginator(flores, 20)
+    pagina = paginator.get_page(request.GET.get("page"))
+    for flor in pagina.object_list:
+        flor.precio_formateado = formato_cop(flor.precio)
+    return render(
+        request,
+        "usuarios/inventario.html",
+        {
+            "pagina": pagina,
+            "flores": pagina.object_list,
+            "consulta": consulta,
+            "archivadas": archivadas,
+            "resultados": paginator.count,
+        },
+    )
+
+
+@_session_required(admin_only=True)
+def crear_flor(request):
+    form = FlorInventarioForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        flor = form.save()
+        messages.success(request, f"{flor.nombre} se agregó al inventario.")
+        return redirect("inventario")
+    return render(
+        request,
+        "usuarios/formulario_flor.html",
+        {"form": form, "titulo": "Agregar flor", "accion": "Agregar al inventario"},
+    )
+
+
+@_session_required(admin_only=True)
+def editar_flor(request, flor_id):
+    flor = get_object_or_404(Flor, pk=flor_id, activo=True)
+    form = FlorInventarioForm(request.POST or None, instance=flor)
+    if request.method == "POST" and form.is_valid():
+        flor = form.save()
+        messages.success(request, f"Se actualizaron los datos de {flor.nombre}.")
+        return redirect("inventario")
+    return render(
+        request,
+        "usuarios/formulario_flor.html",
+        {"form": form, "titulo": "Editar datos", "accion": "Guardar cambios", "flor": flor},
+    )
+
+
+@_session_required(admin_only=True)
+@require_POST
+def actualizar_cantidad_flor(request, flor_id):
+    flor = get_object_or_404(Flor, pk=flor_id, activo=True)
+    form = CantidadFlorForm(request.POST)
+    if form.is_valid():
+        flor.cantidad = form.cleaned_data["cantidad"]
+        flor.save(update_fields=("cantidad", "actualizado_en"))
+        messages.success(
+            request,
+            f"Existencias de {flor.nombre} actualizadas a {flor.cantidad}.",
+        )
+    else:
+        messages.error(
+            request,
+            "Ingresa una cantidad entera entre 0 y 2.147.483.647.",
+        )
+    return redirect("inventario")
+
+
+@_session_required(admin_only=True)
+@require_POST
+def eliminar_flor(request, flor_id):
+    flor = get_object_or_404(Flor, pk=flor_id, activo=True)
+    flor.activo = False
+    flor.save(update_fields=("activo", "actualizado_en"))
+    messages.success(request, f"{flor.nombre} se quitó del inventario activo.")
+    return redirect("inventario")
+
+
+@_session_required(admin_only=True)
+@require_POST
+def restaurar_flor(request, flor_id):
+    flor = get_object_or_404(Flor, pk=flor_id, activo=False)
+    if Flor.objects.filter(nombre__iexact=flor.nombre, activo=True).exists():
+        messages.error(
+            request,
+            "Ya hay una flor activa con ese nombre. Renombra primero la versión activa.",
+        )
+        return redirect(f"{reverse('inventario')}?estado=archivadas")
+    flor.activo = True
+    flor.save(update_fields=("activo", "actualizado_en"))
+    messages.success(request, f"{flor.nombre} volvió al inventario activo.")
+    return redirect("inventario")
 
 
 @_session_required()
@@ -593,8 +755,9 @@ def panel_usuario(request):
 def ver_catalogo(request):
     consulta = request.GET.get("q", "").strip()
     categoria = request.GET.get("categoria", "").strip()
-    categorias = sorted({producto["categoria"] for producto in PRODUCTOS})
-    productos = list(PRODUCTOS)
+    todos_productos = _todos_los_productos()
+    categorias = sorted({producto["categoria"] for producto in todos_productos})
+    productos = list(todos_productos)
     mensaje_busqueda = ""
 
     if len(consulta) > 100:
@@ -624,7 +787,10 @@ def ver_catalogo(request):
     recomendaciones = []
     for recomendacion in RECOMENDACIONES:
         producto = next(
-            (p for p in PRODUCTOS if p["categoria"] == recomendacion["categoria"]),
+            (
+                p for p in todos_productos
+                if p["categoria"] == recomendacion["categoria"]
+            ),
             None,
         )
         if producto:
@@ -634,7 +800,7 @@ def ver_catalogo(request):
         "usuarios/catalogo.html",
         {
             "productos": [producto_para_vista(p) for p in productos],
-            "todos_productos": [producto_para_vista(p) for p in PRODUCTOS],
+            "todos_productos": [producto_para_vista(p) for p in todos_productos],
             "productos_visibles": [producto["slug"] for producto in productos],
             "resultados_count": len(productos),
             "categorias": categorias,
@@ -656,7 +822,7 @@ def _normalizar_busqueda(texto):
 
 
 def detalle_producto(request, slug):
-    producto = PRODUCTOS_POR_SLUG.get(slug)
+    producto = _obtener_producto(slug)
     if not producto:
         raise Http404("Producto no encontrado")
     return render(
@@ -668,7 +834,7 @@ def detalle_producto(request, slug):
 
 @require_POST
 def agregar_al_carrito(request, slug):
-    producto = PRODUCTOS_POR_SLUG.get(slug)
+    producto = _obtener_producto(slug)
     if not producto:
         raise Http404("Producto no encontrado")
 
@@ -691,7 +857,17 @@ def agregar_al_carrito(request, slug):
     actual = carrito.get(slug, 0)
     if not isinstance(actual, int) or isinstance(actual, bool) or actual < 0:
         actual = 0
-    carrito[slug] = actual + cantidad
+    solicitada = actual + cantidad
+    if producto["inventario_gestionado"] and solicitada > producto["stock"]:
+        mensaje = (
+            "No hay unidades suficientes. "
+            f"Disponibles: {producto['stock']}."
+        )
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "message": mensaje}, status=400)
+        messages.error(request, mensaje)
+        return redirect("detalle_producto", slug=slug)
+    carrito[slug] = solicitada
     request.session["carrito"] = carrito
     mensaje = f"{producto['nombre']} se agregó al carrito."
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
@@ -711,7 +887,7 @@ def _resumen_carrito(carrito_sesion):
     carrito_limpio = {}
     total = 0
     for slug, cantidad in carrito_sesion.items():
-        producto = PRODUCTOS_POR_SLUG.get(slug)
+        producto = _obtener_producto(slug)
         if (
             not producto
             or not isinstance(cantidad, int)
@@ -726,6 +902,13 @@ def _resumen_carrito(carrito_sesion):
                 **producto_para_vista(producto),
                 "cantidad": cantidad,
                 "subtotal_formateado": formato_cop(subtotal),
+                "stock_disponible": (
+                    not producto["inventario_gestionado"]
+                    or cantidad <= producto["stock"]
+                ),
+                "cantidad_maxima": (
+                    producto["stock"] if producto["inventario_gestionado"] else ""
+                ),
             }
         )
         carrito_limpio[slug] = cantidad
@@ -747,6 +930,10 @@ def ver_carrito(request):
         {
             "productos_carrito": productos_carrito,
             "total": formato_cop(total),
+            "hay_productos_sin_stock": any(
+                not producto["stock_disponible"]
+                for producto in productos_carrito
+            ),
         },
     )
 
@@ -772,6 +959,12 @@ def finalizar_pedido(request):
     if not productos_carrito:
         messages.info(request, "Agrega productos al carrito antes de enviar una solicitud.")
         return redirect("carrito")
+    if any(not producto["stock_disponible"] for producto in productos_carrito):
+        messages.error(
+            request,
+            "Ajusta las cantidades del carrito: el inventario cambió desde que agregaste esos productos.",
+        )
+        return redirect("carrito")
 
     form = DireccionEntregaForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -794,9 +987,7 @@ def finalizar_pedido(request):
                         producto_nombre=producto["nombre"],
                         categoria=producto["categoria"],
                         cantidad=producto["cantidad"],
-                        precio_unitario_referencia=PRODUCTOS_POR_SLUG[
-                            producto["slug"]
-                        ]["precio"],
+                        precio_unitario_referencia=producto["precio"],
                     )
                     for producto in productos_carrito
                 ]
@@ -863,7 +1054,8 @@ def _solicitud_para_vista(solicitud):
 
 @require_POST
 def actualizar_carrito(request, slug):
-    if slug not in PRODUCTOS_POR_SLUG:
+    producto = _obtener_producto(slug)
+    if not producto:
         raise Http404("Producto no encontrado")
     try:
         cantidad = int(request.POST.get("cantidad", ""))
@@ -876,6 +1068,12 @@ def actualizar_carrito(request, slug):
                 status=400,
             )
         messages.error(request, "La cantidad debe ser un entero mayor que cero.")
+        return redirect("carrito")
+    if producto["inventario_gestionado"] and cantidad > producto["stock"]:
+        mensaje = f"Solo hay {producto['stock']} unidades disponibles de {producto['nombre']}."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "message": mensaje}, status=400)
+        messages.error(request, mensaje)
         return redirect("carrito")
     carrito = request.session.get("carrito", {})
     if not isinstance(carrito, dict) or slug not in carrito:

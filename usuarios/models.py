@@ -1,5 +1,6 @@
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils.text import slugify
 
 
 class Usuario(models.Model):
@@ -74,3 +75,48 @@ class DetalleSolicitudPedido(models.Model):
 
     def __str__(self):
         return f'{self.producto_nombre} × {self.cantidad}'
+
+
+class Flor(models.Model):
+    nombre = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=120, unique=True, blank=True)
+    categoria = models.CharField(max_length=80)
+    descripcion = models.CharField(max_length=500)
+    precio = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(0.01)],
+    )
+    cantidad = models.PositiveIntegerField(
+        default=0,
+        validators=[MaxValueValidator(2_147_483_647)],
+    )
+    imagen_url = models.URLField(max_length=500, blank=True)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'flores'
+        ordering = ['nombre']
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower('nombre'),
+                condition=models.Q(activo=True),
+                name='flor_nombre_activo_ci_uniq',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.nombre)[:100] or 'flor'
+            slug = base_slug
+            suffix = 2
+            while type(self).objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f'{base_slug[:110]}-{suffix}'
+                suffix += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nombre

@@ -1,0 +1,119 @@
+{% extends "usuarios/base.html" %}
+
+{% block title %}Inventario | Flores Cali{% endblock %}
+
+{% block content %}
+    <div class="inventory-heading">
+        <div>
+            <span class="eyebrow">Administración de productos</span>
+            <h1 class="page-heading">Inventario de flores</h1>
+            <p class="page-intro">Controla el catálogo que ven tus clientes y mantén las existencias al día.</p>
+        </div>
+        <a class="btn" href="{% url 'crear_flor' %}"><span aria-hidden="true">＋</span> Agregar flor</a>
+    </div>
+
+    <section class="inventory-toolbar" aria-label="Buscar y filtrar inventario">
+        <form class="inventory-search" method="get">
+            {% if archivadas %}<input type="hidden" name="estado" value="archivadas">{% endif %}
+            <label class="visually-hidden" for="inventory-search">Buscar por flor o categoría</label>
+            <input id="inventory-search" type="search" name="q" value="{{ consulta }}" maxlength="100" placeholder="Buscar por flor o categoría">
+            <button class="btn btn-secondary" type="submit">Buscar</button>
+        </form>
+        <nav class="inventory-tabs" aria-label="Estado de productos">
+            <a href="{% url 'inventario' %}{% if consulta %}?q={{ consulta|urlencode }}{% endif %}"{% if not archivadas %} aria-current="page"{% endif %}>Activas</a>
+            <a href="{% url 'inventario' %}?estado=archivadas{% if consulta %}&amp;q={{ consulta|urlencode }}{% endif %}"{% if archivadas %} aria-current="page"{% endif %}>Archivadas</a>
+        </nav>
+    </section>
+
+    <div class="inventory-result-count" role="status">
+        {{ resultados }} producto{{ resultados|pluralize }} {{ archivadas|yesno:"archivado,activo" }}{{ resultados|pluralize:"s" }}
+    </div>
+
+    <div class="table-wrap inventory-table-wrap">
+        <table class="inventory-table">
+            <thead>
+                <tr>
+                    <th scope="col">Producto</th>
+                    <th scope="col">Precio</th>
+                    <th scope="col">Existencias</th>
+                    <th scope="col">Actualizado</th>
+                    <th scope="col"><span class="visually-hidden">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for flor in flores %}
+                    <tr>
+                        <td>
+                            <div class="inventory-product">
+                                {% if flor.imagen_url %}
+                                    <img src="{{ flor.imagen_url }}" alt="" loading="lazy">
+                                {% else %}
+                                    <span class="inventory-product-placeholder" aria-hidden="true">✿</span>
+                                {% endif %}
+                                <span><strong>{{ flor.nombre }}</strong><small>{{ flor.categoria }}</small></span>
+                            </div>
+                        </td>
+                        <td class="inventory-price">{{ flor.precio_formateado }}</td>
+                        <td>
+                            {% if flor.cantidad == 0 %}
+                                <span class="stock-badge stock-empty">Agotada</span>
+                            {% elif flor.cantidad <= 5 %}
+                                <span class="stock-badge stock-low">{{ flor.cantidad }} · Bajo</span>
+                            {% else %}
+                                <span class="stock-badge stock-good">{{ flor.cantidad }} · Disponible</span>
+                            {% endif %}
+                        </td>
+                        <td class="inventory-date">{{ flor.actualizado_en|date:"j M Y" }}</td>
+                        <td>
+                            <div class="inventory-actions">
+                                {% if archivadas %}
+                                    <form method="post" action="{% url 'restaurar_flor' flor.id %}">
+                                        {% csrf_token %}
+                                        <button class="btn btn-secondary btn-small" type="submit">Restaurar</button>
+                                    </form>
+                                {% else %}
+                                    <form class="inventory-stock-form" method="post" action="{% url 'actualizar_cantidad_flor' flor.id %}">
+                                        {% csrf_token %}
+                                        <label class="visually-hidden" for="stock-{{ flor.id }}">Unidades disponibles para {{ flor.nombre }}</label>
+                                        <input id="stock-{{ flor.id }}" name="cantidad" type="number" min="0" max="2147483647" step="1" value="{{ flor.cantidad }}" required>
+                                        <button class="btn btn-secondary btn-small" type="submit">Guardar stock</button>
+                                    </form>
+                                    <a class="btn btn-secondary btn-small" href="{% url 'editar_flor' flor.id %}">Editar</a>
+                                    <form method="post" action="{% url 'eliminar_flor' flor.id %}" onsubmit="return confirm('¿Archivar este producto? Dejará de aparecer en el catálogo, pero podrás restaurarlo después.');">
+                                        {% csrf_token %}
+                                        <button class="btn btn-danger btn-small" type="submit">Archivar</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="inventory-empty">
+                                <span class="inventory-product-placeholder" aria-hidden="true">✿</span>
+                                <strong>{% if archivadas %}No hay flores archivadas{% else %}Tu inventario está listo para crecer{% endif %}</strong>
+                                <p>{% if archivadas %}Los productos que archives aparecerán aquí y podrás restaurarlos.{% else %}Agrega tu primera flor para que aparezca también en el catálogo público.{% endif %}</p>
+                                {% if not archivadas %}<a class="btn" href="{% url 'crear_flor' %}">Agregar primera flor</a>{% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagina.has_other_pages %}
+        <nav class="inventory-pagination" aria-label="Paginación del inventario">
+            {% if pagina.has_previous %}
+                <a class="btn btn-secondary btn-small" href="?{% if consulta %}q={{ consulta|urlencode }}&amp;{% endif %}{% if archivadas %}estado=archivadas&amp;{% endif %}page={{ pagina.previous_page_number }}">Anterior</a>
+            {% endif %}
+            <span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+            {% if pagina.has_next %}
+                <a class="btn btn-secondary btn-small" href="?{% if consulta %}q={{ consulta|urlencode }}&amp;{% endif %}{% if archivadas %}estado=archivadas&amp;{% endif %}page={{ pagina.next_page_number }}">Siguiente</a>
+            {% endif %}
+        </nav>
+    {% endif %}
+
+    <p class="inventory-footnote"><a class="text-link" href="{% url 'panel_admin' %}">← Volver a administración</a></p>
+{% endblock %}

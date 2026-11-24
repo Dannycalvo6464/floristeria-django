@@ -40,7 +40,7 @@ WhiteNoise sirve los archivos recopilados, incluidos los estáticos del admin de
 
 ## Base de datos y migraciones
 
-Las migraciones existentes son `usuarios.0001_initial` y `usuarios.0002_usuario_activo`, además de las migraciones estándar de Django. El checkout añade `usuarios.0003_add_delivery_order_requests`, que crea tablas para solicitudes de pedido y sus productos. El cambio es aditivo y no modifica las cuentas existentes.
+Las migraciones de usuarios incluyen `0001_initial`, `0002_usuario_activo`, `0003_add_delivery_order_requests`, `0004_flor` y `0005_seed_catalog_inventory`. La cuarta crea la tabla `flores`; la quinta incorpora al inventario los cuatro productos que ya estaban en el catálogo, con cantidad inicial **0** para que el administrador registre existencias reales antes de aceptar solicitudes. Las solicitudes conservan una copia del nombre, categoría y precio para mantener el historial aunque un producto se archive.
 
 Antes de aplicar la migración en producción, confirma que `DATABASE_URL` corresponde al proyecto Supabase `Flores-cali-bd` y crea un respaldo. No ejecutes migraciones en el build.
 
@@ -50,7 +50,11 @@ En planes pagos, configura en Render **Pre-Deploy Command** `python manage.py mi
 python manage.py migrate --noinput && gunicorn Floristeria.wsgi:application
 ```
 
-Render registra el resultado de la migración en los logs de inicio. Una vez desplegada la versión, confirma que aparezca `Applying usuarios.0003_add_delivery_order_requests... OK`. La migración no cambia datos existentes; el Start Command puede ejecutar `migrate` en cada inicio, y Django no vuelve a aplicar migraciones ya completadas.
+Render registra el resultado de las migraciones en los logs de inicio. Tras el despliegue confirma que aparezcan `Applying usuarios.0004_flor... OK` y `Applying usuarios.0005_seed_catalog_inventory... OK`. `migrate` se ejecuta en cada inicio, pero Django solo aplica las migraciones pendientes.
+
+## Inventario del sprint
+
+Desde **Administración → Inventario de flores**, un administrador puede buscar por nombre o categoría, agregar flores con precio/cantidad/descripción e imagen opcional, editar esos datos y archivar o restaurar productos. Archivar es reversible y quita el producto del catálogo público sin borrar los detalles históricos de pedidos. El catálogo, detalle y carrito muestran las existencias registradas y bloquean la solicitud de cantidades superiores al stock disponible.
 
 La opción de checkout requiere una cuenta activa. Al enviarla, la dirección y el consentimiento quedan asociados a esa cuenta; se puede consultar el historial desde **Mis pedidos**. El flujo crea una solicitud pendiente, no procesa pagos ni garantiza inventario. No ejecutes `flush`, no borres tablas y no reemplaces `db.sqlite3`.
 

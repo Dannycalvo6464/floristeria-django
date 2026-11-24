@@ -5,11 +5,41 @@
 {% block content %}
     <span class="eyebrow">Administración</span>
     <h1 class="page-heading">Hola, {{ usuario.nombre }}</h1>
-    <p class="page-intro">Herramientas para gestionar las cuentas de usuario existentes.</p>
+    <p class="page-intro">Gestiona el catálogo, las existencias y las cuentas de Flores Cali.</p>
+    <section class="inventory-overview" aria-label="Resumen del inventario">
+        <div><span>Flores activas</span><strong>{{ inventario_resumen.productos }}</strong></div>
+        <div><span>Unidades registradas</span><strong>{{ inventario_resumen.unidades }}</strong></div>
+        <div><span>Agotadas</span><strong>{{ inventario_resumen.agotadas }}</strong></div>
+    </section>
+    <section class="dashboard-section" aria-labelledby="inventory-title">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">Productos</span>
+                <h2 id="inventory-title">Inventario de flores</h2>
+                <p>Consulta existencias, ajusta cantidades y mantén el catálogo actualizado.</p>
+            </div>
+        </div>
+        <div class="dashboard-grid">
+            <a class="dashboard-card" href="{% url 'inventario' %}">
+                <span class="dashboard-icon" aria-hidden="true">✿</span>
+                <span class="dashboard-card-title">Gestionar inventario</span>
+                <span class="dashboard-card-description">Busca, agrega o edita flores; archiva productos que ya no están disponibles.</span>
+                <span class="dashboard-card-action">Abrir inventario <span aria-hidden="true">→</span></span>
+            </a>
+        </div>
+    </section>
+    <section class="dashboard-section" aria-labelledby="accounts-title">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">Administración</span>
+                <h2 id="accounts-title">Cuentas de usuario</h2>
+            </div>
+        </div>
     <div class="dashboard-grid">
         <a class="dashboard-card" href="{% url 'buscar_usuario' %}">Buscar cuentas<span>Busca por nombre de usuario.</span></a>
         <a class="dashboard-card" href="{% url 'actualizar_usuario' %}">Actualizar cuenta<span>Modifica los datos de una cuenta existente.</span></a>
         <a class="dashboard-card" href="{% url 'activar_usuario' %}">Activar cuenta<span>Activa una cuenta deshabilitada.</span></a>
         <a class="dashboard-card" href="{% url 'inactivar_usuario' %}">Inactivar cuenta<span>Desactiva una cuenta existente.</span></a>
     </div>
+    </section>
 {% endblock %}

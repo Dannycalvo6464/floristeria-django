@@ -1,8 +1,17 @@
 from django.contrib import admin
-from .models import DetalleSolicitudPedido, SolicitudPedido, Usuario
+from .models import DetalleSolicitudPedido, Flor, SolicitudPedido, Usuario
 
 
 admin.site.register(Usuario)
+
+
+@admin.register(Flor)
+class FlorAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'categoria', 'precio', 'cantidad', 'activo', 'actualizado_en')
+    list_filter = ('activo', 'categoria')
+    list_editable = ('cantidad', 'activo')
+    search_fields = ('nombre', 'categoria', 'slug')
+    readonly_fields = ('slug', 'creado_en', 'actualizado_en')
 
 
 class DetalleSolicitudPedidoInline(admin.TabularInline):
